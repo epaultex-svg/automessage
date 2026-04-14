@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Automessage — AI Reply Suggestions for Gmail",
+  "version": "0.1.0",
+  "description": "Generates 3 AI reply suggestions for any open Gmail thread via OpenRouter.",
+
+  "permissions": [
+    "storage",
+    "sidePanel"
+  ],
+
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://openrouter.ai/*"
+  ],
+
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["dist/content.js"],
+      "css": ["styles/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Automessage Settings"
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

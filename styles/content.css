@@ -1,0 +1,186 @@
+/**
+ * Automessage — Gmail content UI
+ * All rules scoped to #automessage-suggestions or #automessage-sidebar
+ * to avoid clashing with Gmail’s styles.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Shimmer (loading pills) — keyframes are global; name is prefixed “am-”     */
+/* -------------------------------------------------------------------------- */
+@keyframes am-shimmer {
+  from {
+    background-position: -200px 0;
+  }
+  to {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Suggestion row — sits near the reply area                                   */
+/* -------------------------------------------------------------------------- */
+#automessage-suggestions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 4px 0 8px 0;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+}
+
+/* Suggestion pill buttons */
+#automessage-suggestions .am-btn {
+  border-radius: 18px;
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #1a73e8;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, box-shadow 0.15s;
+  line-height: 1.4;
+  outline: none;
+}
+
+#automessage-suggestions .am-btn:hover {
+  background: #e8f0fe;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.2);
+  border-color: #1a73e8;
+}
+
+#automessage-suggestions .am-btn:focus-visible {
+  box-shadow: 0 0 0 2px #1a73e8;
+  border-color: #1a73e8;
+}
+
+#automessage-suggestions .am-btn:active {
+  background: #d2e3fc;
+}
+
+/* Loading state — skeleton shimmer on all three pills */
+#automessage-suggestions .am-btn--loading {
+  background: linear-gradient(90deg, #f1f3f4 25%, #e8eaed 50%, #f1f3f4 75%);
+  background-size: 400px 100%;
+  border-color: #f1f3f4;
+  color: transparent;
+  pointer-events: none;
+  width: 120px;
+  animation: am-shimmer 1.4s ease infinite;
+}
+
+/* Small refresh / regenerate control */
+#automessage-suggestions .am-refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5f6368;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+#automessage-suggestions .am-refresh-btn:hover {
+  background: #f1f3f4;
+  color: #1a73e8;
+}
+
+/* Inline error text */
+#automessage-suggestions .am-error {
+  font-size: 12px;
+  color: #d93025;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Gear — open inline settings; pushed to the end of the row */
+#automessage-suggestions .am-settings-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5f6368;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+#automessage-suggestions .am-settings-toggle:hover {
+  background: #f1f3f4;
+  color: #1a73e8;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Inline settings panel                                                       */
+/* -------------------------------------------------------------------------- */
+#automessage-sidebar {
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  margin: 4px 16px 8px;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  font-size: 13px;
+}
+
+#automessage-sidebar .am-sidebar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+#automessage-sidebar .am-sidebar-label {
+  font-size: 12px;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+#automessage-sidebar .am-sidebar-input,
+#automessage-sidebar .am-sidebar-select {
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: #202124;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#automessage-sidebar .am-sidebar-input:focus,
+#automessage-sidebar .am-sidebar-select:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 1px #1a73e8;
+}
+
+#automessage-sidebar .am-save-btn {
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 7px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+#automessage-sidebar .am-save-btn:hover {
+  background: #1557b0;
+}
