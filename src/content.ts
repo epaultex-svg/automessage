@@ -63,13 +63,21 @@ function onThreadChange(threadId: string): void {
 
 // ── Core flow: parse → request → render ──────────────────────────────────────
 
-function requestSuggestions(threadId: string): void {
+const RETRY_DELAYS_MS = [500, 1500, 3000] as const;
+
+function requestSuggestions(threadId: string, attempt = 0): void {
   const parsed = parseCurrentThread(threadId);
 
   if (!parsed) {
-    console.debug(LOG_PREFIX, "parseCurrentThread returned null, aborting");
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay !== undefined && window.location.href.includes(threadId)) {
+      setTimeout(() => requestSuggestions(threadId, attempt + 1), delay);
+    } else {
+      console.debug(LOG_PREFIX, "parseCurrentThread returned null, aborting after retries");
+    }
     return;
   }
+
 
   const callbacks = makeCallbacks(threadId);
 

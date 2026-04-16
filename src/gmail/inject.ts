@@ -30,7 +30,8 @@ const LOG_PREFIX = "[Automessage/inject]";
  * Comment: these selectors mirror Gmail's current DOM; they may need updating.
  */
 const ANCHOR_SELECTORS = [
-  ".aDh",          // reply strip container (most reliable)
+  ".amn",          // reply action bar (Reply / Reply All / Forward / emoji)
+  ".aDh",          // reply strip container (fallback)
   ".btC",          // bottom toolbar row
   ".aic",          // action bar containing Reply button
   ".ip.adB",       // another action row in some layouts
@@ -159,18 +160,21 @@ export function insertIntoComposer(text: string): void {
       selection.addRange(range);
     }
 
-    // execCommand is deprecated but universally supported by Gmail's event model
-    const inserted = document.execCommand("insertText", false, text);
+    // Convert plain-text newlines to HTML <br> tags so Gmail's contenteditable
+    // renders them as visible line breaks. Escape HTML special chars first.
+    const htmlText = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+
+    // insertHTML is deprecated but is the most reliable way to insert formatted
+    // content into Gmail's contenteditable while triggering its own input handlers.
+    const inserted = document.execCommand("insertHTML", false, htmlText);
     if (!inserted) {
-      // Fallback: dispatch an InputEvent
-      const event = new InputEvent("input", {
-        bubbles: true,
-        cancelable: true,
-        data: text,
-        inputType: "insertText",
-      });
-      editable.dispatchEvent(event);
-      editable.textContent = text;
+      // Fallback: set innerHTML directly with the escaped HTML
+      editable.innerHTML = htmlText;
+      editable.dispatchEvent(new InputEvent("input", { bubbles: true }));
     }
 
     console.debug(LOG_PREFIX, "text inserted into composer, length:", text.length);
@@ -240,7 +244,10 @@ function waitForAnchorAndInject(
 
 function findAnchor(): Element | null {
   for (const sel of ANCHOR_SELECTORS) {
-    const el = document.querySelector(sel);
+    // Use the LAST matching element so we target the most recent (visible)
+    // message in the thread, not a collapsed earlier message.
+    const all = document.querySelectorAll(sel);
+    const el = all.length > 0 ? all[all.length - 1] : null;
     if (el) {
       return el;
     }
@@ -262,16 +269,20 @@ function doInject(
   const buttonCallbacks = makeButtonCallbacks(callbacks);
   const row = createButtonRow(buttonCallbacks);
 
-  // Insert row then sidebar before the anchor
-  anchor.parentNode?.insertBefore(row, anchor);
-  anchor.parentNode?.insertBefore(sidebar, anchor);
+  // Append row inside .amn so suggestion pills appear on the same flex line
+  // as Reply / Reply All / Forward. The parent is display:block so inserting
+  // after .amn would put the row on a separate line below the reply strip.
+  anchor.appendChild(row);
+  // Sidebar sits before .amn's parent so it expands as a full-width panel
+  // above the reply bar without disrupting the inline button layout.
+  anchor.parentElement?.insertAdjacentElement("beforebegin", sidebar);
 
   injected = { row, sidebar };
 
   // Render the actual initial state
   updateButtonRow(row, initialState, buttonCallbacks);
 
-  console.debug(LOG_PREFIX, "injected before anchor:", anchor.className);
+  console.debug(LOG_PREFIX, "injected into anchor:", anchor.className);
 }
 
 function makeButtonCallbacks(callbacks: InjectCallbacks): ButtonRowCallbacks {
