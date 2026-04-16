@@ -42,19 +42,17 @@ function parseTone(value: string): TonePreset {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const apiKeyEl = document.getElementById("apiKey");
   const modelEl = document.getElementById("model");
   const toneEl = document.getElementById("tone");
   const statusEl = document.getElementById("status");
   const saveBtn = document.getElementById("saveBtn");
 
-  if (!apiKeyEl || !modelEl || !toneEl || !statusEl || !saveBtn) {
+  if (!modelEl || !toneEl || !statusEl || !saveBtn) {
     console.debug(LOG_PREFIX, "Missing required DOM elements");
     return;
   }
 
-  const apiKeyInput = apiKeyEl as HTMLInputElement;
-  const modelInput = modelEl as HTMLInputElement;
+  const modelSelect = modelEl as HTMLSelectElement;
   const toneSelect = toneEl as HTMLSelectElement;
   const statusDiv = statusEl as HTMLDivElement;
   const saveButton = saveBtn as HTMLButtonElement;
@@ -77,8 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function applySettings(s: Settings): void {
-    apiKeyInput.value = s.apiKey;
-    modelInput.value = s.model;
+    modelSelect.value = s.model;
     toneSelect.value = s.tone;
   }
 
@@ -100,19 +97,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   saveButton.addEventListener("click", () => {
-    const apiKey = apiKeyInput.value.trim();
-    const model = modelInput.value.trim();
+    const model = modelSelect.value;
     const tone = parseTone(toneSelect.value);
-
-    if (!apiKey) {
-      showStatus("API key is required", "error");
-      console.debug(LOG_PREFIX, "Save blocked: empty API key");
-      return;
-    }
 
     const saveMsg: SaveSettingsRequest = {
       type: "SAVE_SETTINGS",
-      payload: { apiKey, model, tone },
+      payload: { model, tone },
     };
 
     console.debug(LOG_PREFIX, "Sending SAVE_SETTINGS");

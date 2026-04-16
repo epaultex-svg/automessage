@@ -43,12 +43,10 @@ export function populateSidebar(
   sidebar: HTMLDivElement,
   settings: Settings,
 ): void {
-  const apiKeyInput = sidebar.querySelector<HTMLInputElement>("#am-apiKey");
-  const modelInput = sidebar.querySelector<HTMLInputElement>("#am-model");
+  const modelSelect = sidebar.querySelector<HTMLSelectElement>("#am-model");
   const toneSelect = sidebar.querySelector<HTMLSelectElement>("#am-tone");
 
-  if (apiKeyInput) apiKeyInput.value = settings.apiKey;
-  if (modelInput) modelInput.value = settings.model;
+  if (modelSelect) modelSelect.value = settings.model;
   if (toneSelect) toneSelect.value = settings.tone;
 }
 
@@ -66,30 +64,12 @@ function buildSidebarHTML(): string {
   return `
     <form id="am-settings-form" autocomplete="off">
       <div class="am-sidebar-field">
-        <label class="am-sidebar-label" for="am-apiKey">OpenRouter API Key</label>
-        <input
-          class="am-sidebar-input"
-          id="am-apiKey"
-          type="password"
-          placeholder="sk-or-..."
-          autocomplete="new-password"
-          spellcheck="false"
-        />
-        <a
-          href="https://openrouter.ai/keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          style="font-size:11px;color:#1a73e8;margin-top:2px;display:inline-block;"
-        >Get your API key →</a>
-      </div>
-      <div class="am-sidebar-field">
         <label class="am-sidebar-label" for="am-model">Model</label>
-        <input
-          class="am-sidebar-input"
-          id="am-model"
-          type="text"
-          placeholder="openai/gpt-4o-mini"
-        />
+        <select class="am-sidebar-select" id="am-model">
+          <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
+          <option value="openai/gpt-5o-mini">openai/gpt-5o-mini</option>
+          <option value="anthropic/claude-haiku-4-5">anthropic/claude-haiku-4-5</option>
+        </select>
       </div>
       <div class="am-sidebar-field">
         <label class="am-sidebar-label" for="am-tone">Reply Tone</label>
@@ -109,24 +89,14 @@ function handleSave(
   sidebar: HTMLDivElement,
   callbacks: SidebarCallbacks,
 ): void {
-  const apiKeyInput = sidebar.querySelector<HTMLInputElement>("#am-apiKey");
-  const modelInput = sidebar.querySelector<HTMLInputElement>("#am-model");
+  const modelSelect = sidebar.querySelector<HTMLSelectElement>("#am-model");
   const toneSelect = sidebar.querySelector<HTMLSelectElement>("#am-tone");
   const statusEl = sidebar.querySelector<HTMLElement>("#am-sidebar-status");
 
-  const apiKey = apiKeyInput?.value.trim() ?? "";
-  const model = modelInput?.value.trim() ?? "";
+  const model = modelSelect?.value ?? "";
   const tone = (toneSelect?.value ?? "professional") as TonePreset;
 
-  if (!apiKey) {
-    if (statusEl) {
-      statusEl.textContent = "⚠ API key is required.";
-      statusEl.style.color = "#d93025";
-    }
-    return;
-  }
-
-  callbacks.onSave({ apiKey, model, tone });
+  callbacks.onSave({ model, tone });
 
   if (statusEl) {
     statusEl.textContent = "Saved ✓";

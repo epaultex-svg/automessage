@@ -150,7 +150,6 @@
   font-weight: 500;
 }
 
-#automessage-sidebar .am-sidebar-input,
 #automessage-sidebar .am-sidebar-select {
   border: 1px solid #dadce0;
   border-radius: 4px;
@@ -162,7 +161,6 @@
   box-sizing: border-box;
 }
 
-#automessage-sidebar .am-sidebar-input:focus,
 #automessage-sidebar .am-sidebar-select:focus {
   border-color: #1a73e8;
   box-shadow: 0 0 0 1px #1a73e8;
