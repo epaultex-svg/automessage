@@ -24,17 +24,19 @@ export class AutomessageError extends Error {
   }
 }
 
-const SYSTEM_PROMPT = `You are generating helpful email reply suggestions for a Gmail extension. 
-Read the email context and produce exactly 3 concise reply options. 
-Each should be plausible, natural, and ready to send with minimal editing. 
-Avoid inventing details not present in the email. 
+const SYSTEM_PROMPT = `You are generating helpful email reply suggestions for a Gmail extension.
+Read the email context and produce exactly 3 reply options.
+Each reply should be plausible, natural, and ready to send with minimal editing.
+Avoid inventing details not present in the email.
+Format each reply as a proper email: include a greeting, one or more body paragraphs, and a sign-off where appropriate.
+Use \\n to represent line breaks within each reply string (e.g. between greeting and body, between paragraphs, and before the sign-off).
 Return valid JSON only in this exact format: {"replies": ["...", "...", "..."]}
 Do not include any text outside the JSON.`;
 
 const TONE_INSTRUCTIONS: Record<TonePreset, string> = {
   professional: "Replies should be professional and formal.",
   friendly: "Replies should be warm, friendly, and conversational.",
-  concise: "Replies should be very short and to the point, 1-2 sentences max.",
+  concise: "Replies should be brief and to the point, but still use proper email structure with greeting and sign-off separated by line breaks.",
 };
 
 export function buildUserPrompt(email: ParsedEmail, tone: TonePreset): string {
