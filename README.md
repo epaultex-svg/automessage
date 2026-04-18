@@ -20,7 +20,7 @@ A Chrome extension (Manifest V3) that injects 3 AI-generated reply suggestions i
 
 - Node.js 18+ and npm
 - Google Chrome (version 114+ recommended)
-- An [OpenRouter API key](https://openrouter.ai/keys)
+- An [OpenRouter API key](https://openrouter.ai/keys) *(only needed when building from source)*
 
 ### Build
 
@@ -28,9 +28,15 @@ A Chrome extension (Manifest V3) that injects 3 AI-generated reply suggestions i
 # 1. Install dependencies
 npm install
 
-# 2. Build the extension (output goes to dist/)
+# 2. Create a .env file with your OpenRouter API key
+cp .env.example .env
+# Edit .env and replace sk-or-... with your real key
+
+# 3. Build the extension (output goes to dist/)
 npm run build
 ```
+
+> **Note:** The API key is injected into the bundle at build time by webpack and never committed to git. Anyone who receives a pre-built extension does not need to supply a key — it is already baked in.
 
 ### Load in Chrome
 
@@ -41,17 +47,6 @@ npm run build
 5. The Automessage extension should appear with a blue envelope icon
 
 > **Note:** After any code change, run `npm run build` again and click the **↺ reload** icon on the extension card in `chrome://extensions`.
-
----
-
-## Adding your OpenRouter API key
-
-1. Click the Automessage icon in the Chrome toolbar (or pin it first via the puzzle-piece menu)
-2. Enter your **OpenRouter API key** (`sk-or-...`) in the popup
-3. Optionally change the model or reply tone
-4. Click **Save Settings**
-
-Your key is stored locally in `chrome.storage.local` — it never leaves your browser except when making requests to `openrouter.ai`.
 
 ---
 

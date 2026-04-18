@@ -7,13 +7,11 @@
 export type TonePreset = "professional" | "friendly" | "concise";
 
 export interface Settings {
-  apiKey: string;
   model: string;
   tone: TonePreset;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  apiKey: "",
   model: "openai/gpt-4o-mini",
   tone: "professional",
 };

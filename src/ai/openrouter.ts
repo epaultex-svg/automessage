@@ -5,6 +5,7 @@ import type {
   Settings,
   TonePreset,
 } from "../types";
+import { BUNDLED_OPENROUTER_KEY } from "./bundledKey";
 
 const LOG_PREFIX = "[Automessage/openrouter]";
 
@@ -120,10 +121,10 @@ export function clearCache(): void {
   cache.clear();
 }
 
-function validateSettings(settings: Settings): void {
-  if (!settings.apiKey || settings.apiKey.trim() === "") {
+function validateBundledKey(): void {
+  if (!BUNDLED_OPENROUTER_KEY || BUNDLED_OPENROUTER_KEY.trim() === "") {
     throw new AutomessageError(
-      "No API key configured. Please set your OpenRouter API key in the extension settings.",
+      "No bundled API key found. The extension was built without an OPENROUTER_API_KEY.",
       "NO_API_KEY",
     );
   }
@@ -144,7 +145,7 @@ export async function generateReplies(
   email: ParsedEmail,
   settings: Settings,
 ): Promise<AIReplySuggestions> {
-  validateSettings(settings);
+  validateBundledKey();
 
   const model =
     settings.model?.trim() !== "" ? settings.model : "openai/gpt-4o-mini";
@@ -169,7 +170,7 @@ export async function generateReplies(
     response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${settings.apiKey}`,
+        Authorization: `Bearer ${BUNDLED_OPENROUTER_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://github.com/automessage",
         "X-Title": "Automessage Gmail Extension",

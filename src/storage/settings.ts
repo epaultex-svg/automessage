@@ -23,7 +23,6 @@ export async function getSettings(): Promise<Settings> {
       }
       const stored = result[STORAGE_KEY] as Partial<Settings> | undefined;
       const merged: Settings = {
-        apiKey: stored?.apiKey ?? DEFAULT_SETTINGS.apiKey,
         model:
           stored?.model && stored.model.trim() !== ""
             ? stored.model
@@ -31,7 +30,6 @@ export async function getSettings(): Promise<Settings> {
         tone: stored?.tone ?? DEFAULT_SETTINGS.tone,
       };
       console.debug(LOG_PREFIX, "getSettings ok", {
-        hasApiKey: merged.apiKey !== "",
         model: merged.model,
         tone: merged.tone,
       });
@@ -46,7 +44,6 @@ export async function getSettings(): Promise<Settings> {
 export async function saveSettings(partial: Partial<Settings>): Promise<void> {
   const current = await getSettings();
   const next: Settings = {
-    apiKey: partial.apiKey ?? current.apiKey,
     model:
       partial.model !== undefined && partial.model.trim() !== ""
         ? partial.model
