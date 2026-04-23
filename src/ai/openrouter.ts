@@ -1,15 +1,7 @@
-import type {
-  AIReplySuggestions,
-  CacheEntry,
-  ParsedEmail,
-  Settings,
-  TonePreset,
-} from "../types";
-import { BUNDLED_OPENROUTER_KEY } from "./bundledKey";
+import type { AIReplySuggestions, CacheEntry, ParsedEmail, Settings } from "../types";
+import { PROXY_URL, SHARED_TOKEN } from "./proxyConfig";
 
 const LOG_PREFIX = "[Automessage/openrouter]";
-
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const CACHE_TTL_MS = 300_000;
 
@@ -23,32 +15,6 @@ export class AutomessageError extends Error {
     super(message);
     this.name = "AutomessageError";
   }
-}
-
-const SYSTEM_PROMPT = `You are generating helpful email reply suggestions for a Gmail extension.
-Read the email context and produce exactly 3 reply options.
-Each reply should be plausible, natural, and ready to send with minimal editing.
-Avoid inventing details not present in the email.
-Format each reply as a proper email: include a greeting, one or more body paragraphs, and a sign-off where appropriate.
-Use \\n to represent line breaks within each reply string (e.g. between greeting and body, between paragraphs, and before the sign-off).
-Return valid JSON only in this exact format: {"replies": ["...", "...", "..."]}
-Do not include any text outside the JSON.`;
-
-const TONE_INSTRUCTIONS: Record<TonePreset, string> = {
-  professional: "Replies should be professional and formal.",
-  friendly: "Replies should be warm, friendly, and conversational.",
-  concise: "Replies should be brief and to the point, but still use proper email structure with greeting and sign-off separated by line breaks.",
-};
-
-export function buildUserPrompt(email: ParsedEmail, tone: TonePreset): string {
-  const toneLine = TONE_INSTRUCTIONS[tone];
-  return `Email subject: ${email.subject}
-
-Email content:
-${email.body}
-
-${toneLine}
-Generate 3 distinct reply options.`;
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -121,74 +87,57 @@ export function clearCache(): void {
   cache.clear();
 }
 
-function validateBundledKey(): void {
-  if (!BUNDLED_OPENROUTER_KEY || BUNDLED_OPENROUTER_KEY.trim() === "") {
+function validateProxyConfig(): void {
+  if (!PROXY_URL || PROXY_URL.trim() === "") {
     throw new AutomessageError(
-      "No bundled API key found. The extension was built without an OPENROUTER_API_KEY.",
-      "NO_API_KEY",
+      "Proxy URL not configured. The extension was built without AUTOMESSAGE_PROXY_URL.",
+      "NO_PROXY_URL",
+    );
+  }
+  if (!SHARED_TOKEN || SHARED_TOKEN.trim() === "") {
+    throw new AutomessageError(
+      "Shared token not configured. The extension was built without AUTOMESSAGE_SHARED_TOKEN.",
+      "NO_SHARED_TOKEN",
     );
   }
 }
 
-interface OpenRouterChatResponse {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
+interface ProxyResponse {
+  content?: string;
+  error?: string;
 }
 
 export async function generateReplies(
   email: ParsedEmail,
   settings: Settings,
 ): Promise<AIReplySuggestions> {
-  validateBundledKey();
-
-  const model =
-    settings.model?.trim() !== "" ? settings.model : "openai/gpt-4o-mini";
+  validateProxyConfig();
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15_000);
 
-  const body = {
-    model,
-    messages: [
-      { role: "system" as const, content: SYSTEM_PROMPT },
-      {
-        role: "user" as const,
-        content: buildUserPrompt(email, settings.tone),
-      },
-    ],
-    response_format: { type: "json_object" as const },
-  };
-
   let response: Response;
   try {
-    response = await fetch(OPENROUTER_URL, {
+    response = await fetch(`${PROXY_URL}/v1/replies`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${BUNDLED_OPENROUTER_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/automessage",
-        "X-Title": "Automessage Gmail Extension",
+        "X-Automessage-Token": SHARED_TOKEN,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ email, settings }),
       signal: controller.signal,
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       console.error(LOG_PREFIX, "Request timed out after 15 seconds");
       throw new AutomessageError(
-        "OpenRouter request timed out after 15 seconds",
+        "Proxy request timed out after 15 seconds",
         "TIMEOUT",
       );
     }
     console.error(LOG_PREFIX, "Network error", err);
     throw new AutomessageError(
-      err instanceof Error ? err.message : "Network error calling OpenRouter",
+      err instanceof Error ? err.message : "Network error calling proxy",
       "NETWORK",
     );
   } finally {
@@ -200,34 +149,31 @@ export async function generateReplies(
   if (!response.ok) {
     let detail = rawText;
     try {
-      const errJson = JSON.parse(rawText) as OpenRouterChatResponse;
-      if (errJson.error?.message) {
-        detail = errJson.error.message;
-      }
+      const errJson = JSON.parse(rawText) as ProxyResponse;
+      if (errJson.error) detail = errJson.error;
     } catch {
       // keep rawText
     }
-    console.error(LOG_PREFIX, "OpenRouter HTTP error", response.status, detail);
+    console.error(LOG_PREFIX, "Proxy HTTP error", response.status, detail);
     throw new AutomessageError(
-      `OpenRouter request failed (${response.status}): ${detail}`,
-      "OPENROUTER_HTTP",
+      `Proxy request failed (${response.status}): ${detail}`,
+      "PROXY_HTTP",
     );
   }
 
-  let data: OpenRouterChatResponse;
+  let data: ProxyResponse;
   try {
-    data = JSON.parse(rawText) as OpenRouterChatResponse;
+    data = JSON.parse(rawText) as ProxyResponse;
   } catch {
-    console.error(LOG_PREFIX, "Invalid JSON from OpenRouter", rawText);
-    throw new AutomessageError("Invalid JSON response from OpenRouter");
+    console.error(LOG_PREFIX, "Invalid JSON from proxy", rawText);
+    throw new AutomessageError("Invalid JSON response from proxy");
   }
 
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || content.trim() === "") {
-    console.error(LOG_PREFIX, "Missing message content", data);
-    throw new AutomessageError("OpenRouter response missing message content");
+  if (typeof data.content !== "string" || data.content.trim() === "") {
+    console.error(LOG_PREFIX, "Missing content in proxy response", data);
+    throw new AutomessageError("Proxy response missing content");
   }
 
-  console.debug(LOG_PREFIX, "Parsed completion content length", content.length);
-  return parseAIResponse(content);
+  console.debug(LOG_PREFIX, "Parsed proxy content length", data.content.length);
+  return parseAIResponse(data.content);
 }

@@ -1,0 +1,16 @@
+{
+  "name": "automessage-proxy",
+  "version": "0.1.0",
+  "description": "Cloudflare Worker proxy for Automessage Gmail extension",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240821.1",
+    "typescript": "^5.4.5",
+    "wrangler": "^4.84.1"
+  }
+}

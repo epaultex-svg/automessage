@@ -11,7 +11,7 @@
 
   "host_permissions": [
     "https://mail.google.com/*",
-    "https://openrouter.ai/*"
+    "https://*.workers.dev/*"
   ],
 
   "background": {

@@ -20,31 +20,56 @@ A Chrome extension (Manifest V3) that injects 3 AI-generated reply suggestions i
 
 - Node.js 18+ and npm
 - Google Chrome (version 114+ recommended)
-- An [OpenRouter API key](https://openrouter.ai/keys) *(only needed when building from source)*
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free) and an [OpenRouter API key](https://openrouter.ai/keys)
 
-### Build
+### Step 1 — Deploy the Cloudflare Worker proxy
+
+The extension never contacts OpenRouter directly. Your API key lives only as a secret on the Worker.
 
 ```bash
+cd server
+npm install
+npx wrangler login          # opens browser to authenticate with Cloudflare
+
+# Store secrets — you will be prompted to paste the value for each
+npx wrangler secret put OPENROUTER_API_KEY        # paste your sk-or-... key
+npx wrangler secret put AUTOMESSAGE_SHARED_TOKEN  # paste: openssl rand -hex 32
+npx wrangler secret put ALLOWED_EXTENSION_ID      # see step 3 below
+
+# Deploy — note the *.workers.dev URL printed at the end
+npx wrangler deploy
+```
+
+> **Getting your extension ID for `ALLOWED_EXTENSION_ID`:** load the unpacked extension first (step 3), copy the ID from `chrome://extensions`, then run `npx wrangler secret put ALLOWED_EXTENSION_ID` and redeploy.
+
+### Step 2 — Build the extension
+
+```bash
+cd ..   # back to project root
+
 # 1. Install dependencies
 npm install
 
-# 2. Create a .env file with your OpenRouter API key
+# 2. Configure the proxy
 cp .env.example .env
-# Edit .env and replace sk-or-... with your real key
+# Edit .env and fill in:
+#   AUTOMESSAGE_PROXY_URL   — the *.workers.dev URL from step 1
+#   AUTOMESSAGE_SHARED_TOKEN — the same token you set on the Worker
 
-# 3. Build the extension (output goes to dist/)
+# 3. Build (output goes to dist/)
 npm run build
 ```
 
-> **Note:** The API key is injected into the bundle at build time by webpack and never committed to git. Anyone who receives a pre-built extension does not need to supply a key — it is already baked in.
+> **Security note:** The OpenRouter API key never enters the extension bundle. Only the Worker URL and the shared token are baked in at build time. If the token ever leaks, rotate it with `wrangler secret put AUTOMESSAGE_SHARED_TOKEN` and rebuild the extension — no OpenRouter key rotation needed.
 
-### Load in Chrome
+### Step 3 — Load in Chrome
 
 1. Open Chrome and go to `chrome://extensions`
 2. Enable **Developer mode** (toggle in the top-right corner)
 3. Click **Load unpacked**
 4. Select the **root folder** of this project (the one containing `manifest.json`)
 5. The Automessage extension should appear with a blue envelope icon
+6. Copy the extension ID shown under the extension name — you will need it for `ALLOWED_EXTENSION_ID` in step 1.
 
 > **Note:** After any code change, run `npm run build` again and click the **↺ reload** icon on the extension card in `chrome://extensions`.
 
@@ -86,6 +111,7 @@ Open the browser DevTools console on any Gmail tab — logs are prefixed with `[
 | No auto-send | By design — the extension only pre-fills the composer. You review and send manually. |
 | Single-account Gmail | Tested on `mail.google.com/mail/u/0/`. Multi-account tabs (`/u/1/`, `/u/2/`) should work but are less tested. |
 | OpenRouter rate limits | The extension makes one API request per unique email (deduplicated by content hash, cached 5 min). Heavy usage may hit your OpenRouter account's rate limits. |
+| Worker rate limit | The proxy allows 30 requests per 60 seconds per IP. Regenerating suggestions rapidly may briefly hit this limit. |
 
 ---
 
@@ -97,6 +123,13 @@ Automessage/
 ├── package.json
 ├── tsconfig.json
 ├── webpack.config.js
+├── .env.example                # copy to .env; fill in proxy URL + shared token
+├── server/                     # Cloudflare Worker proxy (deployed separately)
+│   ├── package.json
+│   ├── wrangler.toml
+│   ├── tsconfig.json
+│   └── src/
+│       └── worker.ts           # POST /v1/replies — holds the OpenRouter key
 ├── scripts/
 │   └── make-icons.js           # generates placeholder PNG icons
 ├── icons/                      # generated PNG icons (16, 48, 128)
@@ -109,7 +142,8 @@ Automessage/
 │   │   ├── parser.ts           # email text extraction + cleaning
 │   │   └── inject.ts           # injects suggestion row into Gmail DOM
 │   ├── ai/
-│   │   └── openrouter.ts       # OpenRouter API client + cache
+│   │   ├── openrouter.ts       # proxy client + cache (no key)
+│   │   └── proxyConfig.ts      # compile-time proxy URL + token constants
 │   ├── storage/
 │   │   └── settings.ts         # chrome.storage read/write helpers
 │   └── ui/
@@ -157,6 +191,7 @@ The codebase is structured to support these features with minimal changes:
 
 ## Privacy
 
-- Your emails are sent to OpenRouter's API only when you open a thread (and only the most recent message body, truncated to ~2000 chars).
-- Your API key is stored in `chrome.storage.local` (on-device only).
-- No analytics, no telemetry, no external servers beyond OpenRouter.
+- Your emails are sent to OpenRouter's API only when you open a thread (and only the most recent message body, truncated to ~8000 chars).
+- Email content passes through the Cloudflare Worker proxy in transit but is not stored.
+- Your OpenRouter API key never leaves the Cloudflare Worker environment and is never included in the extension bundle.
+- No analytics, no telemetry.
