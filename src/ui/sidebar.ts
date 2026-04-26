@@ -66,9 +66,9 @@ function buildSidebarHTML(): string {
       <div class="am-sidebar-field">
         <label class="am-sidebar-label" for="am-model">Model</label>
         <select class="am-sidebar-select" id="am-model">
+          <option value="anthropic/claude-3-haiku">anthropic/claude-3-haiku</option>
+          <option value="qwen/qwen3-next-80b-a3b-instruct">Qwen3 Next 80B Instruct (paid)</option>
           <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
-          <option value="openai/gpt-5o-mini">openai/gpt-5o-mini</option>
-          <option value="anthropic/claude-haiku-4-5">anthropic/claude-haiku-4-5</option>
         </select>
       </div>
       <div class="am-sidebar-field">

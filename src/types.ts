@@ -11,8 +11,12 @@ export interface Settings {
   tone: TonePreset;
 }
 
+export const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
+export const QWEN_FREE_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+export const CLAUDE_HAIKU_MODEL = "anthropic/claude-3-haiku";
+
 export const DEFAULT_SETTINGS: Settings = {
-  model: "openai/gpt-4o-mini",
+  model: CLAUDE_HAIKU_MODEL,
   tone: "professional",
 };
 

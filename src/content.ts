@@ -15,6 +15,7 @@ import {
   removeInjected,
   insertIntoComposer,
   setSidebarSettings,
+  isRowInjected,
 } from "./gmail/inject";
 import type {
   ExtensionMessage,
@@ -26,9 +27,23 @@ import type {
 
 const LOG_PREFIX = "[Automessage/content]";
 
+// How often (ms) to check whether Gmail silently removed the suggestion row.
+const RESTORE_POLL_MS = 1200;
+
 // Track the last thread we generated suggestions for so we don't re-request on
 // every MutationObserver fire for the same open thread.
 let lastGeneratedThreadId: string | null = null;
+
+// The most recent successful reply set — kept so we can restore the row without
+// a new API call after a suggestion is selected or Gmail rebuilds its composer DOM.
+let lastSuccessState: { status: "success"; replies: [string, string, string] } | null = null;
+
+// Stable reference to the callbacks for the currently active thread, stored so
+// the restore poll can re-inject without creating a new callback closure.
+let activeCallbacks: ReturnType<typeof makeCallbacks> | null = null;
+
+// Interval id for the restore poll (null when no thread is active).
+let restorePollId: ReturnType<typeof setInterval> | null = null;
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +56,7 @@ function init(): void {
   window.addEventListener("unload", () => {
     stopDetection();
     removeInjected();
+    clearRestorePoll();
   });
 }
 
@@ -53,6 +69,9 @@ function onThreadChange(threadId: string): void {
   if (lastGeneratedThreadId !== threadId) {
     removeInjected();
     lastGeneratedThreadId = null;
+    lastSuccessState = null;
+    activeCallbacks = null;
+    clearRestorePoll();
   }
 
   // Parse email — slight delay to let Gmail finish rendering the message body
@@ -80,6 +99,7 @@ function requestSuggestions(threadId: string, attempt = 0): void {
 
 
   const callbacks = makeCallbacks(threadId);
+  activeCallbacks = callbacks;
 
   // Show loading state immediately
   ensureInjected({ status: "loading" }, callbacks);
@@ -109,10 +129,13 @@ function requestSuggestions(threadId: string, attempt = 0): void {
 
     if (response.type === "REPLIES_SUCCESS") {
       lastGeneratedThreadId = response.payload.threadId;
-      updateInjectedState(
-        { status: "success", replies: response.payload.replies },
-        callbacks,
-      );
+      const successState = {
+        status: "success" as const,
+        replies: response.payload.replies,
+      };
+      lastSuccessState = successState;
+      updateInjectedState(successState, callbacks);
+      startRestorePoll(threadId);
     } else if (response.type === "REPLIES_ERROR") {
       updateInjectedState(
         { status: "error", message: response.payload.message },
@@ -125,6 +148,35 @@ function requestSuggestions(threadId: string, attempt = 0): void {
   fetchSettingsForSidebar();
 }
 
+// ── Restore poll ──────────────────────────────────────────────────────────────
+
+/**
+ * Polls every RESTORE_POLL_MS to detect when Gmail has silently removed the
+ * suggestion row (e.g. when the composer DOM is rebuilt after clicking a reply
+ * or after a draft is discarded). Re-injects the last successful state without
+ * issuing a new API request.
+ */
+function startRestorePoll(threadId: string): void {
+  clearRestorePoll();
+  restorePollId = setInterval(() => {
+    if (!window.location.href.includes(threadId) || !lastSuccessState || !activeCallbacks) {
+      clearRestorePoll();
+      return;
+    }
+    if (!isRowInjected()) {
+      console.debug(LOG_PREFIX, "suggestion row missing — restoring for", threadId);
+      ensureInjected(lastSuccessState, activeCallbacks);
+    }
+  }, RESTORE_POLL_MS);
+}
+
+function clearRestorePoll(): void {
+  if (restorePollId !== null) {
+    clearInterval(restorePollId);
+    restorePollId = null;
+  }
+}
+
 // ── Callbacks wired into the UI ───────────────────────────────────────────────
 
 function makeCallbacks(threadId: string) {
@@ -132,11 +184,21 @@ function makeCallbacks(threadId: string) {
     onSuggestionClick: (text: string) => {
       console.debug(LOG_PREFIX, "inserting suggestion into composer");
       insertIntoComposer(text);
+      // Gmail may rebuild the reply area DOM when the composer opens, removing
+      // our row. Re-assert the suggestion row after a short tick so the user
+      // can still select a different reply or see the other options.
+      setTimeout(() => {
+        if (lastSuccessState && activeCallbacks) {
+          ensureInjected(lastSuccessState, activeCallbacks);
+        }
+      }, 400);
     },
 
     onRefresh: () => {
       console.debug(LOG_PREFIX, "refresh requested for", threadId);
       lastGeneratedThreadId = null;
+      lastSuccessState = null;
+      clearRestorePoll();
       requestSuggestions(threadId);
     },
 
@@ -152,8 +214,9 @@ function makeCallbacks(threadId: string) {
         }
         if (response?.type === "SETTINGS_SAVED" && response.payload.success) {
           console.debug(LOG_PREFIX, "settings saved, refreshing suggestions");
-          // Refresh so new tone/model is used immediately
           lastGeneratedThreadId = null;
+          lastSuccessState = null;
+          clearRestorePoll();
           requestSuggestions(threadId);
         }
       });

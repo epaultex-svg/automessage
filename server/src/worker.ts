@@ -35,14 +35,14 @@ interface OpenRouterChatResponse {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_MODEL = "anthropic/claude-3-haiku";
+const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
+const LEGACY_FREE_QWEN_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
 
 const ALLOWED_MODELS = new Set([
+  DEFAULT_MODEL,
+  QWEN_PAID_MODEL,
   "openai/gpt-4o-mini",
-  "openai/gpt-4o",
-  "anthropic/claude-3-haiku",
-  "anthropic/claude-3.5-sonnet",
-  "google/gemini-flash-1.5",
-  "meta-llama/llama-3.1-8b-instruct:free",
 ]);
 
 const VALID_TONES: ReadonlySet<string> = new Set([
@@ -106,8 +106,9 @@ Generate 3 distinct reply options.`;
 }
 
 function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
+  const requestedModel = settings.model?.trim() !== "" ? settings.model : DEFAULT_MODEL;
   const model =
-    settings.model?.trim() !== "" ? settings.model : "openai/gpt-4o-mini";
+    requestedModel === LEGACY_FREE_QWEN_MODEL ? DEFAULT_MODEL : requestedModel;
   return {
     model,
     messages: [
@@ -115,6 +116,7 @@ function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
       { role: "user" as const, content: buildUserPrompt(email, settings.tone) },
     ],
     response_format: { type: "json_object" as const },
+    max_tokens: 1200,
   };
 }
 

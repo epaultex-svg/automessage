@@ -161,11 +161,11 @@ Automessage/
 
 ## Customising the AI model
 
-The default model is `openai/gpt-4o-mini` (fast and cheap). You can change it in the popup or the inline settings gear. Any model available on OpenRouter works — for example:
+The default model is `anthropic/claude-3-haiku`. You can change it in the popup or the inline settings gear. Supported models:
 
-- `anthropic/claude-3-haiku` — fast, high quality
-- `google/gemini-flash-1.5` — very fast
-- `meta-llama/llama-3.1-8b-instruct:free` — free tier
+- `anthropic/claude-3-haiku` — fast, high quality (default)
+- `qwen/qwen3-next-80b-a3b-instruct` — paid tier
+- `openai/gpt-4o-mini` — fast and cheap
 
 See the full list at [openrouter.ai/models](https://openrouter.ai/models).
 

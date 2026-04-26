@@ -96,6 +96,15 @@ export function updateInjectedState(
 }
 
 /**
+ * Returns true when the suggestion row is currently present in the live document.
+ * Used by content.ts to detect when Gmail has silently removed our row.
+ */
+export function isRowInjected(): boolean {
+  const el = document.getElementById(CONTAINER_ID);
+  return el !== null && document.contains(el);
+}
+
+/**
  * Remove the injected row and sidebar from the DOM entirely.
  * Called when navigating away from a thread.
  */

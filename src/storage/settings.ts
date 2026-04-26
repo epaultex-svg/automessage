@@ -1,9 +1,17 @@
 import type { Settings } from "../types";
-import { DEFAULT_SETTINGS } from "../types";
+import {
+  CLAUDE_HAIKU_MODEL,
+  DEFAULT_SETTINGS,
+  QWEN_FREE_MODEL,
+} from "../types";
 
 const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
+
+function normalizeModel(model: string): string {
+  return model === QWEN_FREE_MODEL ? CLAUDE_HAIKU_MODEL : model;
+}
 
 /**
  * Read settings from chrome.storage.local.
@@ -22,11 +30,12 @@ export async function getSettings(): Promise<Settings> {
         return;
       }
       const stored = result[STORAGE_KEY] as Partial<Settings> | undefined;
+      const storedModel =
+        stored?.model && stored.model.trim() !== ""
+          ? normalizeModel(stored.model)
+          : DEFAULT_SETTINGS.model;
       const merged: Settings = {
-        model:
-          stored?.model && stored.model.trim() !== ""
-            ? stored.model
-            : DEFAULT_SETTINGS.model,
+        model: storedModel,
         tone: stored?.tone ?? DEFAULT_SETTINGS.tone,
       };
       console.debug(LOG_PREFIX, "getSettings ok", {
@@ -46,7 +55,7 @@ export async function saveSettings(partial: Partial<Settings>): Promise<void> {
   const next: Settings = {
     model:
       partial.model !== undefined && partial.model.trim() !== ""
-        ? partial.model
+        ? normalizeModel(partial.model)
         : current.model,
     tone: partial.tone ?? current.tone,
   };
