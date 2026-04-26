@@ -11,7 +11,7 @@
 
   "host_permissions": [
     "https://mail.google.com/*",
-    "https://*.workers.dev/*"
+    "https://automessage-proxy.automessage.workers.dev/*"
   ],
 
   "background": {
