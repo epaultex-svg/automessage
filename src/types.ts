@@ -32,8 +32,15 @@ export interface ParsedEmail {
 
 // ── AI response ───────────────────────────────────────────────────────────────
 
+export interface AIReplyOption {
+  type: string;
+  text: string;
+}
+
+export type AIReplyOptionTuple = [AIReplyOption, AIReplyOption, AIReplyOption];
+
 export interface AIReplySuggestions {
-  replies: [string, string, string]; // exactly 3
+  replies: AIReplyOptionTuple; // exactly 3
 }
 
 // ── Chrome extension message passing ─────────────────────────────────────────
@@ -57,7 +64,7 @@ export interface GenerateRepliesSuccess {
   type: "REPLIES_SUCCESS";
   payload: {
     threadId: string;
-    replies: [string, string, string];
+    replies: AIReplyOptionTuple;
   };
 }
 
@@ -91,7 +98,7 @@ export interface SaveSettingsResponse {
 // ── Cache entry ───────────────────────────────────────────────────────────────
 
 export interface CacheEntry {
-  replies: [string, string, string];
+  replies: AIReplyOptionTuple;
   timestamp: number;
 }
 
@@ -100,5 +107,5 @@ export interface CacheEntry {
 export type SuggestionState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; replies: [string, string, string] }
+  | { status: "success"; replies: AIReplyOptionTuple }
   | { status: "error"; message: string };

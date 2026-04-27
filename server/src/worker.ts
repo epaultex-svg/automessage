@@ -56,11 +56,14 @@ const SUBJECT_MAX_LENGTH = 500;
 
 const SYSTEM_PROMPT = `You are generating helpful email reply suggestions for a Gmail extension.
 Read the email context and produce exactly 3 reply options.
+Each reply must include a short response type label and the full reply text.
+Prefer these response types when they fit the email: Accept, Deny, Reschedule.
+If the email context clearly calls for different intents, use concise 1-3 word labels that describe each option.
 Each reply should be plausible, natural, and ready to send with minimal editing.
 Avoid inventing details not present in the email.
 Format each reply as a proper email: include a greeting, one or more body paragraphs, and a sign-off where appropriate.
-Use \\n to represent line breaks within each reply string (e.g. between greeting and body, between paragraphs, and before the sign-off).
-Return valid JSON only in this exact format: {"replies": ["...", "...", "..."]}
+Use \\n to represent line breaks within each reply text string (e.g. between greeting and body, between paragraphs, and before the sign-off).
+Return valid JSON only in this exact format: {"replies": [{"type": "Accept", "text": "..."}, {"type": "Deny", "text": "..."}, {"type": "Reschedule", "text": "..."}]}
 Do not include any text outside the JSON.`;
 
 const TONE_INSTRUCTIONS: Record<TonePreset, string> = {
@@ -102,7 +105,7 @@ Email content:
 ${email.body}
 
 ${TONE_INSTRUCTIONS[tone]}
-Generate 3 distinct reply options.`;
+Generate 3 distinct typed reply options.`;
 }
 
 function buildUpstreamBody(email: ParsedEmail, settings: Settings) {

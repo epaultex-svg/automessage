@@ -14,7 +14,7 @@ import {
   updateInjectedState,
   removeInjected,
   insertIntoComposer,
-  setSidebarSettings,
+  setInCardSettings,
   isRowInjected,
 } from "./gmail/inject";
 import type {
@@ -23,6 +23,7 @@ import type {
   GetSettingsRequest,
   SaveSettingsRequest,
   Settings,
+  SuggestionState,
 } from "./types";
 
 const LOG_PREFIX = "[Automessage/content]";
@@ -36,7 +37,7 @@ let lastGeneratedThreadId: string | null = null;
 
 // The most recent successful reply set — kept so we can restore the row without
 // a new API call after a suggestion is selected or Gmail rebuilds its composer DOM.
-let lastSuccessState: { status: "success"; replies: [string, string, string] } | null = null;
+let lastSuccessState: Extract<SuggestionState, { status: "success" }> | null = null;
 
 // Stable reference to the callbacks for the currently active thread, stored so
 // the restore poll can re-inject without creating a new callback closure.
@@ -144,8 +145,8 @@ function requestSuggestions(threadId: string, attempt = 0): void {
     }
   });
 
-  // Pre-fetch settings so sidebar is ready to display
-  fetchSettingsForSidebar();
+  // Pre-fetch settings so the in-card form is ready to display.
+  fetchSettingsForCard();
 }
 
 // ── Restore poll ──────────────────────────────────────────────────────────────
@@ -226,14 +227,14 @@ function makeCallbacks(threadId: string) {
 
 // ── Settings pre-fetch ────────────────────────────────────────────────────────
 
-function fetchSettingsForSidebar(): void {
+function fetchSettingsForCard(): void {
   const msg: GetSettingsRequest = { type: "GET_SETTINGS" };
   chrome.runtime.sendMessage(msg, (response: ExtensionMessage | undefined) => {
     if (chrome.runtime.lastError || !response) {
       return;
     }
     if (response.type === "SETTINGS_RESPONSE") {
-      setSidebarSettings(response.payload);
+      setInCardSettings(response.payload);
     }
   });
 }

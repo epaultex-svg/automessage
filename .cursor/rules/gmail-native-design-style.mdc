@@ -1,0 +1,15 @@
+---
+description: Keep UI edits minimal and Gmail/Google native-looking
+alwaysApply: true
+---
+
+# Gmail-Native Design Style
+
+Build or edit UI in a minimal Gmail/Google Workspace style.
+
+- Keep layouts clean, compact, and low-noise.
+- Use neutral surfaces, subtle borders/elevation, and restrained radius.
+- Keep typography simple and readable.
+- Use predictable, subtle hover/focus/active states.
+- Reuse existing project UI patterns before creating new ones.
+- Avoid flashy visuals (heavy shadows, gradients, glassmorphism, decorative effects).

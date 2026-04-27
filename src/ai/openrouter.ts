@@ -1,4 +1,11 @@
-import type { AIReplySuggestions, CacheEntry, ParsedEmail, Settings } from "../types";
+import type {
+  AIReplyOption,
+  AIReplyOptionTuple,
+  AIReplySuggestions,
+  CacheEntry,
+  ParsedEmail,
+  Settings,
+} from "../types";
 import { PROXY_URL, SHARED_TOKEN } from "./proxyConfig";
 
 const LOG_PREFIX = "[Automessage/openrouter]";
@@ -24,6 +31,34 @@ function isStringArray(value: unknown): value is string[] {
   );
 }
 
+function normalizeReplyOption(value: unknown): AIReplyOption | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const option = value as Record<string, unknown>;
+  if (typeof option.type !== "string" || typeof option.text !== "string") {
+    return null;
+  }
+
+  const type = option.type.trim();
+  const text = option.text.trim();
+  if (!type || !text) {
+    return null;
+  }
+
+  return { type, text };
+}
+
+function toReplyTuple(replies: AIReplyOption[]): AIReplyOptionTuple | null {
+  if (replies.length < 3) {
+    return null;
+  }
+
+  const three = replies.slice(0, 3);
+  return [three[0], three[1], three[2]];
+}
+
 export function parseAIResponse(raw: string): AIReplySuggestions {
   const tryParse = (text: string): AIReplySuggestions | null => {
     let parsed: unknown;
@@ -36,14 +71,32 @@ export function parseAIResponse(raw: string): AIReplySuggestions {
       typeof parsed === "object" &&
       parsed !== null &&
       "replies" in parsed &&
-      isStringArray((parsed as { replies: unknown }).replies)
+      Array.isArray((parsed as { replies: unknown }).replies)
     ) {
-      const list = (parsed as { replies: string[] }).replies;
-      if (list.length < 3) {
-        return null;
+      const list = (parsed as { replies: unknown[] }).replies;
+      const objectReplies = list
+        .map(normalizeReplyOption)
+        .filter((reply): reply is AIReplyOption => reply !== null);
+      const typedTuple = toReplyTuple(objectReplies);
+      if (typedTuple) {
+        return { replies: typedTuple };
       }
-      const three = list.slice(0, 3);
-      return { replies: [three[0], three[1], three[2]] };
+
+      // Backward compatibility while older proxy responses expire from cache or
+      // deployments roll forward.
+      if (isStringArray(list)) {
+        const legacyTypes = ["Accept", "Deny", "Reschedule"] as const;
+        const legacyReplies = list.slice(0, 3).map((reply, index) => ({
+          type: legacyTypes[index] ?? `Option ${index + 1}`,
+          text: reply.trim(),
+        }));
+        const legacyTuple = toReplyTuple(
+          legacyReplies.filter((reply) => reply.text !== ""),
+        );
+        if (legacyTuple) {
+          return { replies: legacyTuple };
+        }
+      }
     }
     return null;
   };

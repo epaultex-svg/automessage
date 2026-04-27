@@ -1,7 +1,7 @@
 /**
  * Automessage — Gmail content UI
- * All rules scoped to #automessage-suggestions or #automessage-sidebar
- * to avoid clashing with Gmail’s styles.
+ * All rules scoped to #automessage-suggestions to avoid clashing with Gmail’s
+ * styles.
  */
 
 /* -------------------------------------------------------------------------- */
@@ -17,167 +17,294 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* Suggestion row — sits near the reply area                                   */
+/* Suggested reply card — sits near the reply area                             */
 /* -------------------------------------------------------------------------- */
+/*
+ * Horizontal padding is a fallback only. At runtime, src/gmail/inject.ts
+ * measures Gmail's message body column and writes inline left/right padding so
+ * the card aligns under the email text like Gmail's native Suggested reply.
+ */
 #automessage-suggestions {
+  display: block;
+  width: 100%;
+  padding: 0 12px;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+#automessage-suggestions .am-card {
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 16px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+  color: #202124;
+  overflow: hidden;
+}
+
+#automessage-suggestions .am-card-header {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 0 0 8px;
-  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  justify-content: space-between;
+  box-sizing: border-box;
+  gap: 12px;
+  min-height: 40px;
+  padding: 12px;
+  border-bottom: 1px solid #f1f3f4;
 }
 
-/* Suggestion pill buttons */
-#automessage-suggestions .am-btn {
-  border-radius: 18px;
-  border: 1px solid #dadce0;
-  background: #fff;
-  color: #1a73e8;
+#automessage-suggestions .am-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+#automessage-suggestions .am-card-icon {
+  display: inline-flex;
+  color: #5f6368;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+#automessage-suggestions .am-card-label {
+  color: #3c4043;
   font-size: 13px;
   font-weight: 500;
-  padding: 6px 14px;
-  cursor: pointer;
-  max-width: 220px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: background 0.15s, box-shadow 0.15s;
+}
+
+#automessage-suggestions .am-card-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+#automessage-suggestions .am-card-body {
+  box-sizing: border-box;
+  padding: 12px;
+}
+
+#automessage-suggestions .am-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#automessage-suggestions .am-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+#automessage-suggestions .am-tab {
+  appearance: none;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 999px;
+  color: #5f6368;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.4;
+  max-width: 160px;
+  min-height: 30px;
+  overflow: hidden;
+  padding: 5px 14px;
+  text-overflow: ellipsis;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+#automessage-suggestions .am-tab:hover {
+  background: #f8fafd;
+  border-color: #c4d7f5;
+  color: #1a73e8;
+}
+
+#automessage-suggestions .am-tab:focus-visible,
+#automessage-suggestions .am-reply-panel:focus-visible,
+#automessage-suggestions .am-refresh-btn:focus-visible,
+#automessage-suggestions .am-settings-toggle:focus-visible,
+#automessage-suggestions .am-settings-select:focus-visible,
+#automessage-suggestions .am-save-btn:focus-visible,
+#automessage-suggestions .am-secondary-btn:focus-visible {
   outline: none;
-}
-
-#automessage-suggestions .am-btn:hover {
-  background: #e8f0fe;
-  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.2);
-  border-color: #1a73e8;
-}
-
-#automessage-suggestions .am-btn:focus-visible {
   box-shadow: 0 0 0 2px #1a73e8;
+}
+
+#automessage-suggestions .am-tab--active {
+  background: #e8f0fe;
   border-color: #1a73e8;
+  color: #1a73e8;
 }
 
-#automessage-suggestions .am-btn:active {
-  background: #d2e3fc;
+#automessage-suggestions .am-reply-panel {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  box-sizing: border-box;
+  color: #202124;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.45;
+  min-height: 64px;
+  padding: 12px;
+  white-space: pre-wrap;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
-/* Loading state — skeleton shimmer on all three pills */
-#automessage-suggestions .am-btn--loading {
+#automessage-suggestions .am-reply-panel:hover {
+  background: #f8fafd;
+  border-color: #d2e3fc;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.12);
+}
+
+#automessage-suggestions .am-tab--loading,
+#automessage-suggestions .am-reply-panel--loading {
   background: linear-gradient(90deg, #f1f3f4 25%, #e8eaed 50%, #f1f3f4 75%);
   background-size: 400px 100%;
   border-color: #f1f3f4;
   color: transparent;
   pointer-events: none;
-  width: 120px;
   animation: am-shimmer 1.4s ease infinite;
 }
 
-/* Small refresh / regenerate control */
-#automessage-suggestions .am-refresh-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #5f6368;
-  padding: 4px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s;
-  flex-shrink: 0;
+#automessage-suggestions .am-tab--loading {
+  width: 94px;
 }
 
-#automessage-suggestions .am-refresh-btn:hover {
-  background: #f1f3f4;
-  color: #1a73e8;
+#automessage-suggestions .am-reply-panel--loading {
+  min-height: 72px;
 }
 
-/* Inline error text */
-#automessage-suggestions .am-error {
-  font-size: 12px;
-  color: #d93025;
-  padding: 4px 8px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Gear — open inline settings; pushed to the end of the row */
+#automessage-suggestions .am-refresh-btn,
 #automessage-suggestions .am-settings-toggle {
   background: none;
   border: none;
-  cursor: pointer;
-  color: #5f6368;
-  padding: 4px;
   border-radius: 50%;
+  color: #5f6368;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
   flex-shrink: 0;
-  margin-left: auto;
+  height: 28px;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+  width: 28px;
 }
 
+#automessage-suggestions .am-refresh-btn:hover,
 #automessage-suggestions .am-settings-toggle:hover {
   background: #f1f3f4;
   color: #1a73e8;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Inline settings panel                                                       */
-/* -------------------------------------------------------------------------- */
-#automessage-sidebar {
-  padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
-  margin: 4px 16px 8px;
-  font-family: "Google Sans", Roboto, Arial, sans-serif;
+#automessage-suggestions .am-error {
+  background: #fce8e6;
+  border: 1px solid #fad2cf;
+  border-radius: 12px;
+  color: #a50e0e;
+  display: block;
   font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 12px;
 }
 
-#automessage-sidebar .am-sidebar-field {
+/* -------------------------------------------------------------------------- */
+/* In-card settings view                                                       */
+/* -------------------------------------------------------------------------- */
+#automessage-suggestions .am-settings-body {
+  padding-top: 10px;
+}
+
+#automessage-suggestions .am-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#automessage-suggestions .am-settings-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 10px;
 }
 
-#automessage-sidebar .am-sidebar-label {
+#automessage-suggestions .am-settings-label {
   font-size: 12px;
   color: #5f6368;
   font-weight: 500;
 }
 
-#automessage-sidebar .am-sidebar-select {
+#automessage-suggestions .am-settings-select {
+  appearance: none;
+  background: #fff;
   border: 1px solid #dadce0;
-  border-radius: 4px;
-  padding: 6px 8px;
-  font-size: 13px;
-  color: #202124;
-  outline: none;
-  width: 100%;
+  border-radius: 8px;
   box-sizing: border-box;
+  color: #202124;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  font-size: 13px;
+  min-height: 34px;
+  outline: none;
+  padding: 6px 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
 }
 
-#automessage-sidebar .am-sidebar-select:focus {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 1px #1a73e8;
+#automessage-suggestions .am-settings-select:hover {
+  border-color: #bdc1c6;
 }
 
-#automessage-sidebar .am-save-btn {
+#automessage-suggestions .am-settings-status {
+  color: #188038;
+  font-size: 12px;
+  min-height: 16px;
+}
+
+#automessage-suggestions .am-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+#automessage-suggestions .am-save-btn,
+#automessage-suggestions .am-secondary-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 32px;
+  padding: 6px 14px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+#automessage-suggestions .am-save-btn {
   background: #1a73e8;
   color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 7px 16px;
-  font-size: 13px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.15s;
 }
 
-#automessage-sidebar .am-save-btn:hover {
+#automessage-suggestions .am-save-btn:hover {
   background: #1557b0;
+}
+
+#automessage-suggestions .am-secondary-btn {
+  background: #fff;
+  border-color: #dadce0;
+  color: #202124;
+}
+
+#automessage-suggestions .am-secondary-btn:hover {
+  background: #f8fafd;
+  border-color: #c4d7f5;
+  color: #1a73e8;
 }

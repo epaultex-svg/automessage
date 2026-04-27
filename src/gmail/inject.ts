@@ -1,6 +1,6 @@
 /**
- * Manages all DOM injection for the suggestion row and sidebar.
- * Knows about Gmail selectors but delegates rendering to ui/buttons.ts and ui/sidebar.ts.
+ * Manages DOM injection for the suggestion row.
+ * Knows about Gmail selectors but delegates rendering to ui/buttons.ts.
  *
  * Injection strategy: find a stable anchor point near the reply area, insert
  * our row just above it. Gmail's reply strip can appear in several layouts, so
@@ -12,16 +12,14 @@ import {
   updateButtonRow,
   CONTAINER_ID,
   ButtonRowCallbacks,
+  populateButtonRowSettings,
 } from "../ui/buttons";
-import {
-  createSidebar,
-  populateSidebar,
-  toggleSidebar,
-  SIDEBAR_ID,
-  SidebarCallbacks,
-} from "../ui/sidebar";
 import type { Settings, SuggestionState } from "../types";
-import { getReplyComposerArea, getComposerBodyEditable } from "./dom";
+import {
+  getReplyComposerArea,
+  getComposerBodyEditable,
+  getLatestMessageBody,
+} from "./dom";
 
 const LOG_PREFIX = "[Automessage/inject]";
 
@@ -38,6 +36,34 @@ const ANCHOR_SELECTORS = [
   'div[role="main"] .nH .adn', // fallback: thread content area
 ] as const;
 
+const NATIVE_SUGGESTED_REPLY_SELECTORS = [
+  ".mVCoBd", // outer Google Suggested reply block observed in Gmail
+  ".vIQNqd", // inner Google Suggested reply card wrapper
+  'div[role="toolbar"][aria-label="Suggested replies"]', // simple Gmail suggested-reply pills
+] as const;
+const NATIVE_SUGGESTED_REPLY_LABELS = [
+  "Suggested reply",
+  "Suggested replies",
+] as const;
+const NATIVE_SUGGESTED_REPLY_BUTTON_SELECTOR =
+  'button[aria-label^="Suggested reply,"]';
+const NATIVE_HIDDEN_ATTR = "data-automessage-hidden-native-suggestion";
+
+const MESSAGE_BODY_SELECTORS = [
+  ".a3s.aiL",
+  ".a3s",
+  ".ii.gt",
+] as const;
+
+const MESSAGE_CONTAINER_SELECTORS = [
+  ".gA.gt.acV",
+  ".gA.gt",
+  ".adn",
+  ".gs",
+] as const;
+
+const ALIGNED_FLAG_ATTR = "data-automessage-body-aligned";
+
 // How long to wait for anchor to appear in the DOM after thread change (ms)
 const ANCHOR_WAIT_TIMEOUT_MS = 5000;
 const ANCHOR_POLL_INTERVAL_MS = 250;
@@ -50,11 +76,18 @@ export interface InjectCallbacks {
 
 interface InjectedComponents {
   row: HTMLDivElement;
-  sidebar: HTMLDivElement;
+  nativeSuggestedReply?: HTMLElement;
+  nativePreviousDisplay?: string;
 }
+
+type InjectionTarget =
+  | { kind: "native"; block: HTMLElement }
+  | { kind: "fallback"; anchor: Element };
 
 let injected: InjectedComponents | null = null;
 let anchorPollTimer: ReturnType<typeof setInterval> | null = null;
+let resizeListenerInstalled = false;
+let resizeRafId: number | null = null;
 
 /**
  * Ensure the suggestion row is present in the DOM.
@@ -68,7 +101,9 @@ export function ensureInjected(
   // Update in place if row already exists in the DOM
   const existing = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
   if (existing && document.contains(existing)) {
+    moveExistingRowToNativeTarget(existing);
     updateButtonRow(existing, state, makeButtonCallbacks(callbacks));
+    alignRowToMessageBody(existing);
     return;
   }
 
@@ -93,6 +128,7 @@ export function updateInjectedState(
     return;
   }
   updateButtonRow(container, state, makeButtonCallbacks(callbacks));
+  alignRowToMessageBody(container);
 }
 
 /**
@@ -105,29 +141,29 @@ export function isRowInjected(): boolean {
 }
 
 /**
- * Remove the injected row and sidebar from the DOM entirely.
+ * Remove the injected row from the DOM entirely.
  * Called when navigating away from a thread.
  */
 export function removeInjected(): void {
   clearAnchorPoll();
+  removeResizeListener();
 
   const row = document.getElementById(CONTAINER_ID);
-  const sidebar = document.getElementById(SIDEBAR_ID);
 
+  restoreNativeSuggestedReply();
   row?.remove();
-  sidebar?.remove();
   injected = null;
 
   console.debug(LOG_PREFIX, "injection removed");
 }
 
 /**
- * Populate the inline sidebar with current settings so the user can edit them.
+ * Populate the in-card settings form with current settings so the user can edit them.
  */
-export function setSidebarSettings(settings: Settings): void {
-  const sidebar = document.getElementById(SIDEBAR_ID) as HTMLDivElement | null;
-  if (sidebar) {
-    populateSidebar(sidebar, settings);
+export function setInCardSettings(settings: Settings): void {
+  const row = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
+  if (row) {
+    populateButtonRowSettings(row, settings);
   }
 }
 
@@ -231,11 +267,11 @@ function waitForAnchorAndInject(
   const startedAt = Date.now();
 
   const attempt = () => {
-    const anchor = findAnchor();
+    const target = findInjectionTarget();
 
-    if (anchor) {
+    if (target) {
       clearAnchorPoll();
-      doInject(anchor, state, callbacks);
+      doInject(target, state, callbacks);
       return;
     }
 
@@ -249,6 +285,72 @@ function waitForAnchorAndInject(
   if (!injected) {
     anchorPollTimer = setInterval(attempt, ANCHOR_POLL_INTERVAL_MS);
   }
+}
+
+function findInjectionTarget(): InjectionTarget | null {
+  const nativeBlock = findNativeSuggestedReplyBlock();
+  if (nativeBlock) {
+    return { kind: "native", block: nativeBlock };
+  }
+
+  const anchor = findAnchor();
+  return anchor ? { kind: "fallback", anchor } : null;
+}
+
+function findNativeSuggestedReplyBlock(): HTMLElement | null {
+  const selector = NATIVE_SUGGESTED_REPLY_SELECTORS.join(", ");
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    const candidate = candidates[i];
+    if (candidate.closest(`#${CONTAINER_ID}`)) {
+      continue;
+    }
+
+    if (!isNativeSuggestedReplyCandidate(candidate)) {
+      continue;
+    }
+
+    return getNativeSuggestedReplyHideTarget(candidate);
+  }
+
+  return null;
+}
+
+function isNativeSuggestedReplyCandidate(candidate: HTMLElement): boolean {
+  const hasSuggestedReplyLabel = NATIVE_SUGGESTED_REPLY_LABELS.some((label) => {
+    return candidate.textContent?.includes(label) || candidate.getAttribute("aria-label") === label;
+  });
+  const hasSuggestedReplyButtons = Boolean(
+    candidate.querySelector(NATIVE_SUGGESTED_REPLY_BUTTON_SELECTOR),
+  );
+
+  return hasSuggestedReplyLabel || hasSuggestedReplyButtons;
+}
+
+function getNativeSuggestedReplyHideTarget(candidate: HTMLElement): HTMLElement {
+  if (candidate.matches(".mVCoBd")) {
+    return candidate;
+  }
+
+  const outerCard = candidate.closest<HTMLElement>(".mVCoBd");
+  if (outerCard) {
+    return outerCard;
+  }
+
+  return candidate;
+}
+
+function moveExistingRowToNativeTarget(row: HTMLDivElement): void {
+  const nativeBlock = findNativeSuggestedReplyBlock();
+
+  if (!nativeBlock || nativeBlock.hasAttribute(NATIVE_HIDDEN_ATTR)) {
+    return;
+  }
+
+  nativeBlock.insertAdjacentElement("beforebegin", row);
+  injected = hideNativeSuggestedReply(nativeBlock, row);
+  alignRowToMessageBody(row);
 }
 
 function findAnchor(): Element | null {
@@ -265,45 +367,176 @@ function findAnchor(): Element | null {
 }
 
 function doInject(
-  anchor: Element,
+  target: InjectionTarget,
   initialState: SuggestionState,
   callbacks: InjectCallbacks,
 ): void {
-  const sidebarCallbacks: SidebarCallbacks = {
-    onSave: callbacks.onSaveSettings,
-  };
-
-  const sidebar = createSidebar(sidebarCallbacks);
-
   const buttonCallbacks = makeButtonCallbacks(callbacks);
   const row = createButtonRow(buttonCallbacks);
 
-  // Append row inside .amn so suggestion pills appear on the same flex line
-  // as Reply / Reply All / Forward. The parent is display:block so inserting
-  // after .amn would put the row on a separate line below the reply strip.
-  anchor.appendChild(row);
-  // Sidebar sits before .amn's parent so it expands as a full-width panel
-  // above the reply bar without disrupting the inline button layout.
-  anchor.parentElement?.insertAdjacentElement("beforebegin", sidebar);
+  if (target.kind === "native") {
+    target.block.insertAdjacentElement("beforebegin", row);
+    injected = hideNativeSuggestedReply(target.block, row);
+  } else {
+    // Append inside .amn so the fallback appears near Gmail's reply controls.
+    target.anchor.appendChild(row);
+    injected = { row };
+  }
 
-  injected = { row, sidebar };
 
   // Render the actual initial state
   updateButtonRow(row, initialState, buttonCallbacks);
+  alignRowToMessageBody(row);
+  installResizeListener();
 
-  console.debug(LOG_PREFIX, "injected into anchor:", anchor.className);
+  console.debug(
+    LOG_PREFIX,
+    "injected into target:",
+    target.kind === "native" ? "native suggested reply" : target.anchor.className,
+  );
+}
+
+function hideNativeSuggestedReply(
+  nativeBlock: HTMLElement,
+  row: HTMLDivElement,
+): InjectedComponents {
+  const nativePreviousDisplay = nativeBlock.style.display;
+  nativeBlock.setAttribute(NATIVE_HIDDEN_ATTR, "true");
+  nativeBlock.style.display = "none";
+  return { row, nativeSuggestedReply: nativeBlock, nativePreviousDisplay };
+}
+
+function restoreNativeSuggestedReply(): void {
+  const nativeBlock =
+    injected?.nativeSuggestedReply ??
+    document.querySelector<HTMLElement>(`[${NATIVE_HIDDEN_ATTR}="true"]`);
+
+  if (!nativeBlock) {
+    return;
+  }
+
+  nativeBlock.style.display = injected?.nativePreviousDisplay ?? "";
+  nativeBlock.removeAttribute(NATIVE_HIDDEN_ATTR);
+}
+
+function alignRowToMessageBody(row: HTMLElement): void {
+  const parent = row.parentElement;
+  if (!parent) {
+    return;
+  }
+
+  const bodyEl = findMessageBodyForRow(row);
+  if (!bodyEl) {
+    row.style.removeProperty("padding-left");
+    row.style.removeProperty("padding-right");
+    row.removeAttribute(ALIGNED_FLAG_ATTR);
+    return;
+  }
+
+  const parentRect = parent.getBoundingClientRect();
+  const bodyRect = bodyEl.getBoundingClientRect();
+
+  if (parentRect.width <= 0 || bodyRect.width <= 0) {
+    return;
+  }
+
+  const leftInset = clampInset(bodyRect.left - parentRect.left, parentRect.width);
+  const rightInset = clampInset(parentRect.right - bodyRect.right, parentRect.width);
+
+  row.style.paddingLeft = `${leftInset}px`;
+  row.style.paddingRight = `${rightInset}px`;
+  row.setAttribute(ALIGNED_FLAG_ATTR, "true");
+}
+
+function clampInset(value: number, parentWidth: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const maxInset = Math.max(0, Math.floor(parentWidth / 2) - 1);
+  return Math.max(0, Math.min(maxInset, Math.round(value)));
+}
+
+function findMessageBodyForRow(row: HTMLElement): HTMLElement | null {
+  const messageContainer = findMessageContainerFromRow(row);
+  if (messageContainer) {
+    for (const sel of MESSAGE_BODY_SELECTORS) {
+      const candidates = messageContainer.querySelectorAll<HTMLElement>(sel);
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        const el = candidates[i];
+        if (isElementVisible(el)) {
+          return el;
+        }
+      }
+    }
+  }
+
+  const fallback = getLatestMessageBody();
+  if (fallback instanceof HTMLElement && isElementVisible(fallback)) {
+    return fallback;
+  }
+  return null;
+}
+
+function findMessageContainerFromRow(row: HTMLElement): HTMLElement | null {
+  const start = row.parentElement;
+  if (!start) {
+    return null;
+  }
+  for (const sel of MESSAGE_CONTAINER_SELECTORS) {
+    const match = start.closest<HTMLElement>(sel);
+    if (match) {
+      return match;
+    }
+  }
+  return null;
+}
+
+function isElementVisible(el: HTMLElement): boolean {
+  if (!el.isConnected) {
+    return false;
+  }
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function installResizeListener(): void {
+  if (resizeListenerInstalled || typeof window === "undefined") {
+    return;
+  }
+  window.addEventListener("resize", scheduleRealignOnResize, { passive: true });
+  resizeListenerInstalled = true;
+}
+
+function removeResizeListener(): void {
+  if (!resizeListenerInstalled || typeof window === "undefined") {
+    return;
+  }
+  window.removeEventListener("resize", scheduleRealignOnResize);
+  if (resizeRafId !== null) {
+    cancelAnimationFrame(resizeRafId);
+    resizeRafId = null;
+  }
+  resizeListenerInstalled = false;
+}
+
+function scheduleRealignOnResize(): void {
+  if (resizeRafId !== null) {
+    return;
+  }
+  resizeRafId = requestAnimationFrame(() => {
+    resizeRafId = null;
+    const row = document.getElementById(CONTAINER_ID) as HTMLElement | null;
+    if (row) {
+      alignRowToMessageBody(row);
+    }
+  });
 }
 
 function makeButtonCallbacks(callbacks: InjectCallbacks): ButtonRowCallbacks {
   return {
     onSuggestionClick: callbacks.onSuggestionClick,
     onRefresh: callbacks.onRefresh,
-    onSettingsToggle: () => {
-      const sidebar = document.getElementById(SIDEBAR_ID) as HTMLDivElement | null;
-      if (sidebar) {
-        toggleSidebar(sidebar);
-      }
-    },
+    onSaveSettings: callbacks.onSaveSettings,
   };
 }
 
