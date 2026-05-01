@@ -13,6 +13,7 @@ import {
 import { getSettings, saveSettings } from "./storage/settings";
 import { hashEmail } from "./gmail/parser";
 import type {
+  AIReplySuggestions,
   ExtensionMessage,
   GenerateRepliesRequest,
   SaveSettingsRequest,
@@ -20,8 +21,9 @@ import type {
 
 const LOG_PREFIX = "[Automessage/background]";
 
-// Track in-flight requests by email hash so we don't fire duplicate API calls.
-const inFlight = new Set<string>();
+// Track in-flight requests by email hash so duplicate messages share the same
+// API call while every Chrome message channel still receives a response.
+const inFlight = new Map<string, Promise<AIReplySuggestions>>();
 
 chrome.runtime.onInstalled.addListener(() => {
   console.debug(LOG_PREFIX, "extension installed / updated");
@@ -76,17 +78,21 @@ async function handleGenerateReplies(
     return;
   }
 
-  // Skip if already in flight for this exact content
-  if (inFlight.has(hash)) {
-    console.debug(LOG_PREFIX, "request already in flight, ignoring", hash);
-    return;
-  }
-
-  inFlight.add(hash);
+  let request = inFlight.get(hash);
+  let ownsRequest = false;
 
   try {
-    const settings = await getSettings();
-    const result = await generateReplies(message.payload, settings);
+    if (!request) {
+      request = getSettings().then((settings) =>
+        generateReplies(message.payload, settings),
+      );
+      inFlight.set(hash, request);
+      ownsRequest = true;
+    } else {
+      console.debug(LOG_PREFIX, "joining in-flight request", hash);
+    }
+
+    const result = await request;
 
     setCached(hash, result);
 
@@ -109,7 +115,9 @@ async function handleGenerateReplies(
       payload: { threadId, message: msg },
     });
   } finally {
-    inFlight.delete(hash);
+    if (ownsRequest && inFlight.get(hash) === request) {
+      inFlight.delete(hash);
+    }
   }
 }
 
