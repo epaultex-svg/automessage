@@ -191,7 +191,8 @@ The codebase is structured to support these features with minimal changes:
 
 ## Privacy
 
-- Your emails are sent to OpenRouter's API only when you open a thread (and only the most recent message body, truncated to ~8000 chars).
-- Email content passes through the Cloudflare Worker proxy in transit but is not stored.
-- Your OpenRouter API key never leaves the Cloudflare Worker environment and is never included in the extension bundle.
-- No analytics, no telemetry.
+- Automessage parses the Gmail subject, latest visible message body, sender name/email when available, and your model/tone settings to generate reply suggestions.
+- That context is sent to the configured Cloudflare Worker proxy at `/v1/replies`, which calls OpenRouter. The extension does not contact OpenRouter directly.
+- The extension stores only model/tone settings locally with `chrome.storage.local`; no analytics or telemetry are present in this repository.
+- The Worker source does not intentionally persist email content, but deployed Worker logging and provider retention settings should be confirmed by the operator.
+- See [PRIVACY.md](PRIVACY.md) for the full data handling policy.
