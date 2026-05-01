@@ -21,6 +21,15 @@ const BODY_CONTAINER_SELECTOR_GROUPS = [
   "[data-message-id] .ii.gt div",
 ] as const;
 
+const MESSAGE_CONTAINER_SELECTORS = [
+  ".adn",
+  ".h7",
+  ".gs",
+  "[data-message-id]",
+] as const;
+
+const SENDER_SELECTORS = [".gD[email]", "span[email]"] as const;
+
 function debug(...args: unknown[]): void {
   console.debug(LOG_PREFIX, ...args);
 }
@@ -118,6 +127,10 @@ export function extractLatestMessageBody(doc: Document = document): string {
     return "";
   }
 
+  return extractBodyText(source);
+}
+
+function extractBodyText(source: HTMLElement): string {
   const clone = source.cloneNode(true);
   if (!(clone instanceof HTMLElement)) {
     debug("clone was not HTMLElement");
@@ -133,19 +146,29 @@ export function extractLatestMessageBody(doc: Document = document): string {
   return cleaned;
 }
 
-/**
- * Sender from Gmail's name/email attributes on span-like nodes.
- */
-export function extractSender(doc: Document = document): {
+function readSenderElement(el: Element): {
   fromName: string;
   fromEmail: string;
 } | null {
-  const selectors = [".gD[email]", "span[email]"] as const;
+  const emailAttr = el.getAttribute("email");
+  if (!emailAttr || !emailAttr.trim()) {
+    return null;
+  }
 
-  for (const sel of selectors) {
+  const nameAttr = el.getAttribute("name");
+  const fromName = nameAttr?.trim() ?? "";
+  const fromEmail = emailAttr.trim();
+  return { fromName, fromEmail };
+}
+
+function findSenderInRoot(root: ParentNode, selectorLabel: string): {
+  fromName: string;
+  fromEmail: string;
+} | null {
+  for (const sel of SENDER_SELECTORS) {
     let el: Element | null;
     try {
-      el = doc.querySelector(sel);
+      el = root.querySelector(sel);
     } catch {
       debug("invalid sender selector", sel);
       continue;
@@ -154,17 +177,55 @@ export function extractSender(doc: Document = document): {
       continue;
     }
 
-    const emailAttr = el.getAttribute("email");
-    if (!emailAttr || !emailAttr.trim()) {
+    const sender = readSenderElement(el);
+    if (sender) {
+      debug("sender from", `${selectorLabel} ${sel}`, sender);
+      return sender;
+    }
+  }
+  return null;
+}
+
+function findNearestMessageContainer(bodyRoot: HTMLElement): HTMLElement | null {
+  for (const sel of MESSAGE_CONTAINER_SELECTORS) {
+    let el: Element | null = null;
+    try {
+      el = bodyRoot.closest(sel);
+    } catch {
+      debug("invalid message container selector", sel);
       continue;
     }
+    if (el instanceof HTMLElement) {
+      debug("message container from", sel);
+      return el;
+    }
+  }
+  return null;
+}
 
-    const nameAttr = el.getAttribute("name");
-    const fromName = nameAttr?.trim() ?? "";
-    const fromEmail = emailAttr.trim();
+/**
+ * Sender from Gmail's name/email attributes on span-like nodes.
+ */
+export function extractSender(
+  doc: Document = document,
+  bodyRoot: HTMLElement | null = findLatestBodyRoot(doc),
+): {
+  fromName: string;
+  fromEmail: string;
+} | null {
+  if (bodyRoot) {
+    const messageContainer = findNearestMessageContainer(bodyRoot);
+    if (messageContainer) {
+      const scopedSender = findSenderInRoot(messageContainer, "latest message");
+      if (scopedSender) {
+        return scopedSender;
+      }
+    }
+  }
 
-    debug("sender from", sel, { fromName, fromEmail });
-    return { fromName, fromEmail };
+  const fallbackSender = findSenderInRoot(doc, "document fallback");
+  if (fallbackSender) {
+    return fallbackSender;
   }
 
   debug("no sender element with email attribute");
@@ -172,11 +233,16 @@ export function extractSender(doc: Document = document): {
 }
 
 /**
- * FNV-1a 32-bit over subject + NUL + body; returned as 8-char lowercase hex.
+ * FNV-1a 32-bit over prompt-affecting email fields; returned as 8-char lowercase hex.
  * Fast, non-cryptographic cache key.
  */
-export function hashEmail(subject: string, body: string): string {
-  const input = `${subject}\0${body}`;
+export function hashEmail(
+  subject: string,
+  body: string,
+  fromName = "",
+  fromEmail = "",
+): string {
+  const input = `${subject}\0${body}\0${fromName}\0${fromEmail}`;
   let h = 0x811c9dc5 >>> 0;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
@@ -197,14 +263,15 @@ export function parseCurrentThread(threadId: string): ParsedEmail | null {
   }
 
   const subject = extractSubject();
-  const body = extractLatestMessageBody();
+  const bodyRoot = findLatestBodyRoot(document);
+  const body = bodyRoot ? extractBodyText(bodyRoot) : "";
 
   if (!body) {
     debug("parseCurrentThread: no body, returning null", { threadId, subject });
     return null;
   }
 
-  const sender = extractSender();
+  const sender = extractSender(document, bodyRoot);
   const result: ParsedEmail = {
     threadId: threadId.trim(),
     subject,

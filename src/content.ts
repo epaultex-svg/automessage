@@ -125,6 +125,14 @@ function requestSuggestions(threadId: string, attempt = 0): void {
     }
 
     if (!response) {
+      updateInjectedState(
+        {
+          status: "error",
+          message:
+            "Extension did not respond — try closing and reopening the thread.",
+        },
+        callbacks,
+      );
       return;
     }
 

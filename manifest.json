@@ -4,10 +4,7 @@
   "version": "0.1.0",
   "description": "Generates 3 AI reply suggestions for any open Gmail thread via OpenRouter.",
 
-  "permissions": [
-    "storage",
-    "sidePanel"
-  ],
+  "permissions": ["storage"],
 
   "host_permissions": [
     "https://mail.google.com/*",

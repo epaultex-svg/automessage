@@ -13,6 +13,7 @@ import {
 import { getSettings, saveSettings } from "./storage/settings";
 import { hashEmail } from "./gmail/parser";
 import type {
+  AIReplySuggestions,
   ExtensionMessage,
   GenerateRepliesRequest,
   SaveSettingsRequest,
@@ -20,8 +21,14 @@ import type {
 
 const LOG_PREFIX = "[Automessage/background]";
 
-// Track in-flight requests by email hash so we don't fire duplicate API calls.
-const inFlight = new Set<string>();
+/** Outcome of a single generate run — shared when duplicate requests dedupe. */
+type GenerateFlightOutcome =
+  | { ok: true; replies: AIReplySuggestions["replies"] }
+  | { ok: false; message: string };
+
+// One promise per email-hash: concurrent GENERATE_REPLIES with the same hash await
+// the same flight and all receive sendResponse (never leave the channel hanging).
+const inFlight = new Map<string, Promise<GenerateFlightOutcome>>();
 
 chrome.runtime.onInstalled.addListener(() => {
   console.debug(LOG_PREFIX, "extension installed / updated");
@@ -62,10 +69,9 @@ async function handleGenerateReplies(
   message: GenerateRepliesRequest,
   sendResponse: (response: ExtensionMessage) => void,
 ): Promise<void> {
-  const { threadId, subject, body } = message.payload;
-  const hash = hashEmail(subject, body);
+  const { threadId, subject, body, fromName, fromEmail } = message.payload;
+  const hash = hashEmail(subject, body, fromName, fromEmail);
 
-  // Return cached result if still fresh
   const cached = getCached(hash);
   if (cached) {
     console.debug(LOG_PREFIX, "cache hit", hash);
@@ -76,40 +82,45 @@ async function handleGenerateReplies(
     return;
   }
 
-  // Skip if already in flight for this exact content
-  if (inFlight.has(hash)) {
-    console.debug(LOG_PREFIX, "request already in flight, ignoring", hash);
-    return;
+  let flight = inFlight.get(hash);
+  if (!flight) {
+    flight = (async (): Promise<GenerateFlightOutcome> => {
+      try {
+        const settings = await getSettings();
+        const result = await generateReplies(message.payload, settings);
+        setCached(hash, result);
+        console.debug(LOG_PREFIX, "generated replies ok for", threadId);
+        return { ok: true, replies: result.replies };
+      } catch (err) {
+        const msg =
+          err instanceof AutomessageError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Unknown error generating replies";
+
+        console.error(LOG_PREFIX, "generateReplies error:", msg);
+        return { ok: false, message: msg };
+      }
+    })().finally(() => {
+      inFlight.delete(hash);
+    });
+    inFlight.set(hash, flight);
+  } else {
+    console.debug(LOG_PREFIX, "deduped concurrent request for hash", hash);
   }
 
-  inFlight.add(hash);
-
-  try {
-    const settings = await getSettings();
-    const result = await generateReplies(message.payload, settings);
-
-    setCached(hash, result);
-
+  const outcome = await flight;
+  if (outcome.ok) {
     sendResponse({
       type: "REPLIES_SUCCESS",
-      payload: { threadId, replies: result.replies },
+      payload: { threadId, replies: outcome.replies },
     });
-    console.debug(LOG_PREFIX, "generated replies ok for", threadId);
-  } catch (err) {
-    const msg =
-      err instanceof AutomessageError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : "Unknown error generating replies";
-
-    console.error(LOG_PREFIX, "generateReplies error:", msg);
+  } else {
     sendResponse({
       type: "REPLIES_ERROR",
-      payload: { threadId, message: msg },
+      payload: { threadId, message: outcome.message },
     });
-  } finally {
-    inFlight.delete(hash);
   }
 }
 

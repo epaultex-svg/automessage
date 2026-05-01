@@ -53,6 +53,8 @@ const VALID_TONES: ReadonlySet<string> = new Set([
 
 const BODY_MAX_LENGTH = 8_000;
 const SUBJECT_MAX_LENGTH = 500;
+const SENDER_NAME_MAX_LENGTH = 200;
+const SENDER_EMAIL_MAX_LENGTH = 320;
 
 const SYSTEM_PROMPT = `You are generating helpful email reply suggestions for a Gmail extension.
 Read the email context and produce exactly 3 reply options.
@@ -98,8 +100,32 @@ function json(
   });
 }
 
+function buildSenderContext(email: ParsedEmail): string {
+  const fromName = email.fromName?.trim() ?? "";
+  const fromEmail = email.fromEmail?.trim() ?? "";
+
+  if (!fromName && !fromEmail) {
+    return "Sender context: unavailable. Do not invent a recipient name.";
+  }
+
+  const lines = ["Sender context:"];
+  if (fromName) {
+    lines.push(`Sender name: ${fromName}`);
+  }
+  if (fromEmail) {
+    lines.push(`Sender email: ${fromEmail}`);
+  }
+  lines.push(
+    "Use the sender name for the greeting only if it appears to be a person's display name. If the name is missing, generic, or just an email address, use a neutral greeting and do not invent a name.",
+  );
+
+  return lines.join("\n");
+}
+
 function buildUserPrompt(email: ParsedEmail, tone: TonePreset): string {
   return `Email subject: ${email.subject}
+
+${buildSenderContext(email)}
 
 Email content:
 ${email.body}
@@ -134,6 +160,20 @@ function validateBody(body: unknown): body is RequestBody {
   if (typeof e["body"] !== "string") return false;
   if (e["subject"].length > SUBJECT_MAX_LENGTH) return false;
   if (e["body"].length > BODY_MAX_LENGTH) return false;
+  if (
+    e["fromName"] !== undefined &&
+    (typeof e["fromName"] !== "string" ||
+      e["fromName"].length > SENDER_NAME_MAX_LENGTH)
+  ) {
+    return false;
+  }
+  if (
+    e["fromEmail"] !== undefined &&
+    (typeof e["fromEmail"] !== "string" ||
+      e["fromEmail"].length > SENDER_EMAIL_MAX_LENGTH)
+  ) {
+    return false;
+  }
 
   const settings = b["settings"];
   if (typeof settings !== "object" || settings === null) return false;
