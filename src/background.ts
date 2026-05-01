@@ -21,14 +21,9 @@ import type {
 
 const LOG_PREFIX = "[Automessage/background]";
 
-/** Outcome of a single generate run — shared when duplicate requests dedupe. */
-type GenerateFlightOutcome =
-  | { ok: true; replies: AIReplySuggestions["replies"] }
-  | { ok: false; message: string };
-
-// One promise per email-hash: concurrent GENERATE_REPLIES with the same hash await
-// the same flight and all receive sendResponse (never leave the channel hanging).
-const inFlight = new Map<string, Promise<GenerateFlightOutcome>>();
+// Track in-flight requests by email hash so duplicate messages share the same
+// API call while every Chrome message channel still receives a response.
+const inFlight = new Map<string, Promise<AIReplySuggestions>>();
 
 chrome.runtime.onInstalled.addListener(() => {
   console.debug(LOG_PREFIX, "extension installed / updated");
@@ -82,36 +77,24 @@ async function handleGenerateReplies(
     return;
   }
 
-  let flight = inFlight.get(hash);
-  if (!flight) {
-    flight = (async (): Promise<GenerateFlightOutcome> => {
-      try {
-        const settings = await getSettings();
-        const result = await generateReplies(message.payload, settings);
-        setCached(hash, result);
-        console.debug(LOG_PREFIX, "generated replies ok for", threadId);
-        return { ok: true, replies: result.replies };
-      } catch (err) {
-        const msg =
-          err instanceof AutomessageError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "Unknown error generating replies";
+  let request = inFlight.get(hash);
+  let ownsRequest = false;
 
-        console.error(LOG_PREFIX, "generateReplies error:", msg);
-        return { ok: false, message: msg };
-      }
-    })().finally(() => {
-      inFlight.delete(hash);
-    });
-    inFlight.set(hash, flight);
-  } else {
-    console.debug(LOG_PREFIX, "deduped concurrent request for hash", hash);
-  }
+  try {
+    if (!request) {
+      request = getSettings().then((settings) =>
+        generateReplies(message.payload, settings),
+      );
+      inFlight.set(hash, request);
+      ownsRequest = true;
+    } else {
+      console.debug(LOG_PREFIX, "joining in-flight request", hash);
+    }
 
-  const outcome = await flight;
-  if (outcome.ok) {
+    const result = await request;
+
+    setCached(hash, result);
+
     sendResponse({
       type: "REPLIES_SUCCESS",
       payload: { threadId, replies: outcome.replies },
@@ -121,6 +104,10 @@ async function handleGenerateReplies(
       type: "REPLIES_ERROR",
       payload: { threadId, message: outcome.message },
     });
+  } finally {
+    if (ownsRequest && inFlight.get(hash) === request) {
+      inFlight.delete(hash);
+    }
   }
 }
 

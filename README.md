@@ -183,7 +183,7 @@ The codebase is structured to support these features with minimal changes:
 
 4. **Style presets** — beyond professional/friendly/concise, add custom freeform tone descriptions ("like a Silicon Valley startup founder", "like a law firm partner").
 
-5. **Side panel** — promote the inline settings gear to a Chrome side panel (would add `sidePanel` + `side_panel` to the manifest when implemented).
+5. **Side panel** — promote the inline settings gear to a proper Chrome side panel and add the `sidePanel` permission when that feature ships.
 
 6. **Keyboard shortcut** — open/regenerate suggestions via a configurable `chrome.commands` shortcut without touching the mouse.
 

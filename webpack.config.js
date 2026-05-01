@@ -5,36 +5,22 @@ require("dotenv").config();
 const proxyUrl = process.env.AUTOMESSAGE_PROXY_URL;
 const sharedToken = process.env.AUTOMESSAGE_SHARED_TOKEN;
 
-/** @type {function(string): never} */
-function fatalMissing(varName) {
-  throw new Error(
-    `[Automessage] ${varName} is not set. ` +
-      `Create a .env file with ${varName}=<value> before building for production.`
+/** @type {function(string): void} */
+function warnMissing(varName) {
+  console.warn(
+    `\x1b[33m[Automessage] WARNING: ${varName} is not set. ` +
+      `The extension will build, but AI requests will fail until ${varName} is configured.\x1b[0m`
   );
 }
 
-/** @param {import('webpack').WebpackOptionsNormalized} argv */
-function checkEnvVars(argv) {
-  if (argv.mode !== "production") {
-    if (!proxyUrl || proxyUrl.trim() === "") {
-      console.warn(
-        "\x1b[33m[Automessage] WARNING: AUTOMESSAGE_PROXY_URL is not set.\x1b[0m"
-      );
-    }
-    if (!sharedToken || sharedToken.trim() === "") {
-      console.warn(
-        "\x1b[33m[Automessage] WARNING: AUTOMESSAGE_SHARED_TOKEN is not set.\x1b[0m"
-      );
-    }
-  } else {
-    if (!proxyUrl || proxyUrl.trim() === "") fatalMissing("AUTOMESSAGE_PROXY_URL");
-    if (!sharedToken || sharedToken.trim() === "") fatalMissing("AUTOMESSAGE_SHARED_TOKEN");
-  }
+function checkEnvVars() {
+  if (!proxyUrl || proxyUrl.trim() === "") warnMissing("AUTOMESSAGE_PROXY_URL");
+  if (!sharedToken || sharedToken.trim() === "") warnMissing("AUTOMESSAGE_SHARED_TOKEN");
 }
 
 /** @type {function(any, import('webpack').WebpackOptionsNormalized): import('webpack').Configuration} */
 module.exports = (_env, argv) => {
-  checkEnvVars(argv);
+  checkEnvVars();
   return {
     entry: {
       background: "./src/background.ts",
