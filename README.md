@@ -8,7 +8,7 @@ A Chrome extension (Manifest V3) that injects 3 AI-generated reply suggestions i
 
 1. You open an email thread in Gmail.
 2. The extension detects the thread, extracts the most recent message body and subject.
-3. It sends that context to the background service worker, which calls the OpenRouter API.
+3. It sends that context to the background service worker, which calls your Cloudflare Worker proxy. The proxy calls OpenRouter.
 4. Three reply suggestion buttons appear above the Gmail reply area.
 5. Click a button → the text is inserted into Gmail's reply composer, ready to edit and send.
 
@@ -99,19 +99,29 @@ After each rebuild, reload the extension at `chrome://extensions`.
 
 Open the browser DevTools console on any Gmail tab — logs are prefixed with `[Automessage/...]` for easy filtering.
 
+For Chrome Web Store packaging, configure `.env` with the production Worker URL and shared token, then run:
+
+```bash
+npm run build:zip
+```
+
+The generated `automessage.zip` is the upload artifact. Review `docs/chrome-web-store-submission.md` before building the final production ZIP.
+
 ---
 
 ## Known limitations
 
-| Limitation | Notes |
-|---|---|
-| Gmail DOM selectors | Gmail is a complex SPA. Selectors like `.a3s.aiL`, `.aDh`, and `.hP` are reverse-engineered and **may break** after Gmail updates. Check the browser console for errors if suggestions stop appearing. |
-| Service worker lifecycle | MV3 service workers can be terminated by Chrome after inactivity. The in-memory reply cache is lost on termination (harmless — new suggestions are fetched on the next thread open). |
-| `execCommand` deprecation | Inserting text into Gmail's composer uses `document.execCommand('insertText')`, which is deprecated but still the most reliable method for triggering Gmail's own input handlers. |
-| No auto-send | By design — the extension only pre-fills the composer. You review and send manually. |
-| Single-account Gmail | Tested on `mail.google.com/mail/u/0/`. Multi-account tabs (`/u/1/`, `/u/2/`) should work but are less tested. |
-| OpenRouter rate limits | The extension makes one API request per unique email (deduplicated by content hash, cached 5 min). Heavy usage may hit your OpenRouter account's rate limits. |
-| Worker rate limit | The proxy allows 30 requests per 60 seconds per IP. Regenerating suggestions rapidly may briefly hit this limit. |
+
+| Limitation                | Notes                                                                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Gmail DOM selectors       | Gmail is a complex SPA. Selectors like `.a3s.aiL`, `.aDh`, and `.hP` are reverse-engineered and **may break** after Gmail updates. Check the browser console for errors if suggestions stop appearing. |
+| Service worker lifecycle  | MV3 service workers can be terminated by Chrome after inactivity. The in-memory reply cache is lost on termination (harmless — new suggestions are fetched on the next thread open).                   |
+| `execCommand` deprecation | Inserting text into Gmail's composer uses `document.execCommand('insertText')`, which is deprecated but still the most reliable method for triggering Gmail's own input handlers.                      |
+| No auto-send              | By design — the extension only pre-fills the composer. You review and send manually.                                                                                                                   |
+| Single-account Gmail      | Tested on `mail.google.com/mail/u/0/`. Multi-account tabs (`/u/1/`, `/u/2/`) should work but are less tested.                                                                                          |
+| OpenRouter rate limits    | The extension makes one API request per unique email (deduplicated by content hash, cached 5 min). Heavy usage may hit your OpenRouter account's rate limits.                                          |
+| Worker rate limit         | The proxy allows 30 requests per 60 seconds per IP. Regenerating suggestions rapidly may briefly hit this limit.                                                                                       |
+
 
 ---
 
@@ -176,15 +186,10 @@ See the full list at [openrouter.ai/models](https://openrouter.ai/models).
 The codebase is structured to support these features with minimal changes:
 
 1. **Inbox prefetch** — generate suggestions for the top 5 unread emails while the inbox is open, so they appear instantly when you click in. Scaffold: `src/gmail/prefetch.ts`.
-
 2. **"My style" mode** — scan your Sent folder for recent human-written emails, use them as few-shot examples in the AI prompt so replies sound like you. Scaffold: `src/ai/styleAnalyzer.ts`.
-
 3. **Per-contact memory** — remember the tone/style that worked best for each contact and auto-select it. Scaffold: `src/storage/contactMemory.ts`.
-
 4. **Style presets** — beyond professional/friendly/concise, add custom freeform tone descriptions ("like a Silicon Valley startup founder", "like a law firm partner").
-
 5. **Side panel** — promote the inline settings gear to a proper Chrome side panel and add the `sidePanel` permission when that feature ships.
-
 6. **Keyboard shortcut** — open/regenerate suggestions via a configurable `chrome.commands` shortcut without touching the mouse.
 
 ---
@@ -196,3 +201,4 @@ The codebase is structured to support these features with minimal changes:
 - The extension stores only model/tone settings locally with `chrome.storage.local`; no analytics or telemetry are present in this repository.
 - The Worker source does not intentionally persist email content, but deployed Worker logging and provider retention settings should be confirmed by the operator.
 - See [PRIVACY.md](PRIVACY.md) for the full data handling policy.
+
