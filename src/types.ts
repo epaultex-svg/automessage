@@ -26,6 +26,7 @@ export interface ParsedEmail {
   threadId: string; // derived from URL hash or DOM attribute
   subject: string;
   body: string; // cleaned, truncated body text of the most recent message
+  userName?: string; // first name from the signed-in Gmail account, used for sign-offs
   fromName?: string;
   fromEmail?: string;
 }

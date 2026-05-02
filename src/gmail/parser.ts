@@ -29,6 +29,15 @@ const MESSAGE_CONTAINER_SELECTORS = [
 ] as const;
 
 const SENDER_SELECTORS = [".gD[email]", "span[email]"] as const;
+const ACCOUNT_NAME_SELECTORS = [
+  "a[aria-label*='Google Account']",
+  "a[aria-label*='Google-account']",
+  "a[href*='SignOutOptions']",
+] as const;
+
+function firstDisplayNamePart(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] ?? "";
+}
 
 function debug(...args: unknown[]): void {
   console.debug(LOG_PREFIX, ...args);
@@ -233,6 +242,32 @@ export function extractSender(
 }
 
 /**
+ * Best-effort Gmail account owner name from the Google account switcher control.
+ */
+export function extractUserName(doc: Document = document): string {
+  for (const selector of ACCOUNT_NAME_SELECTORS) {
+    let el: Element | null;
+    try {
+      el = doc.querySelector(selector);
+    } catch {
+      debug("invalid account name selector", selector);
+      continue;
+    }
+
+    const label = el?.getAttribute("aria-label") ?? "";
+    const match = label.match(/Google Account:\s*([^,\n]+)/i);
+    const name = firstDisplayNamePart(match?.[1] ?? "");
+    if (name) {
+      debug("user name from account label");
+      return name;
+    }
+  }
+
+  debug("no Gmail account user name found");
+  return "";
+}
+
+/**
  * FNV-1a 32-bit over prompt-affecting email fields; returned as 8-char lowercase hex.
  * Fast, non-cryptographic cache key.
  */
@@ -241,8 +276,9 @@ export function hashEmail(
   body: string,
   fromName = "",
   fromEmail = "",
+  userName = "",
 ): string {
-  const input = `${subject}\0${body}\0${fromName}\0${fromEmail}`;
+  const input = `${subject}\0${body}\0${fromName}\0${fromEmail}\0${userName}`;
   let h = 0x811c9dc5 >>> 0;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
@@ -272,10 +308,12 @@ export function parseCurrentThread(threadId: string): ParsedEmail | null {
   }
 
   const sender = extractSender(document, bodyRoot);
+  const userName = extractUserName();
   const result: ParsedEmail = {
     threadId: threadId.trim(),
     subject,
     body,
+    ...(userName ? { userName } : {}),
     ...(sender
       ? { fromName: sender.fromName, fromEmail: sender.fromEmail }
       : {}),

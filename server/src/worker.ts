@@ -13,6 +13,7 @@ interface ParsedEmail {
   threadId: string;
   subject: string;
   body: string;
+  userName?: string;
   fromName?: string;
   fromEmail?: string;
 }
@@ -53,19 +54,22 @@ const VALID_TONES: ReadonlySet<string> = new Set([
 
 const BODY_MAX_LENGTH = 8_000;
 const SUBJECT_MAX_LENGTH = 500;
+const USER_NAME_MAX_LENGTH = 200;
 const SENDER_NAME_MAX_LENGTH = 200;
 const SENDER_EMAIL_MAX_LENGTH = 320;
 
 const SYSTEM_PROMPT = `You are generating helpful email reply suggestions for a Gmail extension.
 Read the email context and produce exactly 3 reply options.
-Each reply must include a short response type label and the full reply text.
-Prefer these response types when they fit the email: Accept, Deny, Reschedule.
-If the email context clearly calls for different intents, use concise 1-3 word labels that describe each option.
+Choose the 3 most likely response type labels for this email context, using concise 1-3 word labels that describe distinct reply intents.
+Each reply must include one response type label and the full reply text for that intent.
 Each reply should be plausible, natural, and ready to send with minimal editing.
 Avoid inventing details not present in the email.
 Format each reply as a proper email: include a greeting, one or more body paragraphs, and a sign-off where appropriate.
+Write each reply from the extension user's perspective, not from the sender's perspective.
+Never sign off with the incoming sender's name, sender email address, or any identity copied from the incoming email.
+Every reply must end with a complete sign-off phrase followed on the next line by the extension user's name, or by "[your name here]" if their name is unknown.
 Use \\n to represent line breaks within each reply text string (e.g. between greeting and body, between paragraphs, and before the sign-off).
-Return valid JSON only in this exact format: {"replies": [{"type": "Accept", "text": "..."}, {"type": "Deny", "text": "..."}, {"type": "Reschedule", "text": "..."}]}
+Return valid JSON only in this exact format: {"replies": [{"type": "Label One", "text": "..."}, {"type": "Label Two", "text": "..."}, {"type": "Label Three", "text": "..."}]}
 Do not include any text outside the JSON.`;
 
 const TONE_INSTRUCTIONS: Record<TonePreset, string> = {
@@ -116,14 +120,28 @@ function buildSenderContext(email: ParsedEmail): string {
     lines.push(`Sender email: ${fromEmail}`);
   }
   lines.push(
-    "Use the sender name for the greeting only if it appears to be a person's display name. If the name is missing, generic, or just an email address, use a neutral greeting and do not invent a name.",
+    "Use the sender name only for the greeting if it appears to be a person's display name. Do not use the sender name or sender email as the reply sign-off. If the name is missing, generic, or just an email address, use a neutral greeting and do not invent a name.",
   );
 
   return lines.join("\n");
 }
 
+function buildUserContext(email: ParsedEmail): string {
+  const userName = email.userName?.trim() ?? "";
+
+  if (!userName) {
+    return "Extension user context: unavailable. Do not invent the user's name for the sign-off.";
+  }
+
+  return `Extension user context:
+User name: ${userName}
+Use this user name in the sign-off after a sign-off phrase, for example "Best,\\n${userName}".`;
+}
+
 function buildUserPrompt(email: ParsedEmail, tone: TonePreset): string {
   return `Email subject: ${email.subject}
+
+${buildUserContext(email)}
 
 ${buildSenderContext(email)}
 
@@ -160,6 +178,13 @@ function validateBody(body: unknown): body is RequestBody {
   if (typeof e["body"] !== "string") return false;
   if (e["subject"].length > SUBJECT_MAX_LENGTH) return false;
   if (e["body"].length > BODY_MAX_LENGTH) return false;
+  if (
+    e["userName"] !== undefined &&
+    (typeof e["userName"] !== "string" ||
+      e["userName"].length > USER_NAME_MAX_LENGTH)
+  ) {
+    return false;
+  }
   if (
     e["fromName"] !== undefined &&
     (typeof e["fromName"] !== "string" ||

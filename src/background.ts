@@ -1,6 +1,6 @@
 /**
  * Background service worker.
- * All network calls (OpenRouter) happen here — content scripts only message us.
+ * All reply-generation network calls happen here; content scripts only message us.
  * Keep this file free of any DOM access.
  */
 
@@ -64,8 +64,8 @@ async function handleGenerateReplies(
   message: GenerateRepliesRequest,
   sendResponse: (response: ExtensionMessage) => void,
 ): Promise<void> {
-  const { threadId, subject, body, fromName, fromEmail } = message.payload;
-  const hash = hashEmail(subject, body, fromName, fromEmail);
+  const { threadId, subject, body, fromName, fromEmail, userName } = message.payload;
+  const hash = hashEmail(subject, body, fromName, fromEmail, userName);
 
   const cached = getCached(hash);
   if (cached) {
@@ -97,12 +97,20 @@ async function handleGenerateReplies(
 
     sendResponse({
       type: "REPLIES_SUCCESS",
-      payload: { threadId, replies: outcome.replies },
+      payload: { threadId, replies: result.replies },
     });
-  } else {
+  } catch (err) {
+    const message =
+      err instanceof AutomessageError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : "Could not generate reply suggestions";
+
+    console.error(LOG_PREFIX, "GENERATE_REPLIES error:", err);
     sendResponse({
       type: "REPLIES_ERROR",
-      payload: { threadId, message: outcome.message },
+      payload: { threadId, message },
     });
   } finally {
     if (ownsRequest && inFlight.get(hash) === request) {
