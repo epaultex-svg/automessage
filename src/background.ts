@@ -65,7 +65,7 @@ async function handleGenerateReplies(
   sendResponse: (response: ExtensionMessage) => void,
 ): Promise<void> {
   const { threadId, subject, body, fromName, fromEmail, userName } = message.payload;
-  const hash = hashEmail(subject, body, fromName, fromEmail, userName);
+  const hash = hashEmail(threadId, subject, body, fromName, fromEmail, userName);
 
   const cached = getCached(hash);
   if (cached) {

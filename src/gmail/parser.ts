@@ -269,16 +269,18 @@ export function extractUserName(doc: Document = document): string {
 
 /**
  * FNV-1a 32-bit over prompt-affecting email fields; returned as 8-char lowercase hex.
+ * Includes the Gmail thread id so cache/in-flight reuse cannot cross conversations.
  * Fast, non-cryptographic cache key.
  */
 export function hashEmail(
+  threadId: string,
   subject: string,
   body: string,
   fromName = "",
   fromEmail = "",
   userName = "",
 ): string {
-  const input = `${subject}\0${body}\0${fromName}\0${fromEmail}\0${userName}`;
+  const input = `${threadId}\0${subject}\0${body}\0${fromName}\0${fromEmail}\0${userName}`;
   let h = 0x811c9dc5 >>> 0;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
