@@ -197,7 +197,7 @@ function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
       { role: "user" as const, content: buildUserPrompt(email, settings.tone) },
     ],
     response_format: { type: "json_object" as const },
-    max_tokens: 1200,
+    max_tokens: 1030,
   };
 }
 
