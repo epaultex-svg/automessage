@@ -33,6 +33,15 @@ interface OpenRouterChatResponse {
   error?: { message?: string };
 }
 
+interface AIReplyOption {
+  type: string;
+  text: string;
+}
+
+interface AIReplySuggestions {
+  replies: AIReplyOption[];
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -52,6 +61,30 @@ const VALID_TONES: ReadonlySet<string> = new Set([
   "concise",
 ]);
 
+const KNOWN_GREETING_PHRASES = new Set([
+  "dear",
+  "good afternoon",
+  "good evening",
+  "good morning",
+  "hello",
+  "hey",
+  "hi",
+]);
+
+const KNOWN_SIGN_OFFS = new Set([
+  "all the best",
+  "best",
+  "best regards",
+  "cordially",
+  "kind regards",
+  "regards",
+  "respectfully",
+  "sincerely",
+  "thanks",
+  "thank you",
+  "warm regards",
+]);
+
 const BODY_MAX_LENGTH = 8_000;
 const SUBJECT_MAX_LENGTH = 500;
 const USER_NAME_MAX_LENGTH = 200;
@@ -64,10 +97,11 @@ Choose the 3 most likely response type labels for this email context, using conc
 Each reply must include one response type label and the full reply text for that intent.
 Each reply should be plausible, natural, and ready to send with minimal editing.
 Avoid inventing details not present in the email.
-Format each reply as a proper email: include a greeting, one or more body paragraphs, and a sign-off where appropriate.
+Format each reply as a proper email using this structure: "[appropriate greeting] [sender name],\\n\\n[body]\\n\\n[sign-off phrase],\\n\\n[extension user's name]".
 Write each reply from the extension user's perspective, not from the sender's perspective.
 Never sign off with the incoming sender's name, sender email address, or any identity copied from the incoming email.
-Every reply must end with a complete sign-off phrase followed on the next line by the extension user's name, or by "[your name here]" if their name is unknown.
+Every reply must start with a natural greeting, such as "Hi", "Hello", or "Dear", followed by the sender name and a comma. If the sender name is unavailable, use a grammatically natural generic greeting such as "Hi there,". Every reply must end with a complete sign-off phrase followed on the next non-empty line by the extension user's name, or by "[your name here]" if their name is unknown.
+Never use em dashes in replies, and use hyphens sparingly. Use commas, periods, colons, or parentheses instead.
 Use \\n to represent line breaks within each reply text string (e.g. between greeting and body, between paragraphs, and before the sign-off).
 Return valid JSON only in this exact format: {"replies": [{"type": "Label One", "text": "..."}, {"type": "Label Two", "text": "..."}, {"type": "Label Three", "text": "..."}]}
 Do not include any text outside the JSON.`;
@@ -120,7 +154,7 @@ function buildSenderContext(email: ParsedEmail): string {
     lines.push(`Sender email: ${fromEmail}`);
   }
   lines.push(
-    "Use the sender name only for the greeting if it appears to be a person's display name. Do not use the sender name or sender email as the reply sign-off. If the name is missing, generic, or just an email address, use a neutral greeting and do not invent a name.",
+    'Use the sender name only in the opening greeting, such as "Hi [sender name],", "Hello [sender name],", or "Dear [sender name],". Do not use the sender name or sender email as the reply sign-off. If the name is missing, generic, or just an email address, use "Hi there," and do not invent a name.',
   );
 
   return lines.join("\n");
@@ -135,7 +169,7 @@ function buildUserContext(email: ParsedEmail): string {
 
   return `Extension user context:
 User name: ${userName}
-Use this user name in the sign-off after a sign-off phrase, for example "Best,\\n${userName}".`;
+Use this user name as the final line of the sign-off after a natural sign-off phrase, for example "Best,\\n\\n${userName}".`;
 }
 
 function buildUserPrompt(email: ParsedEmail, tone: TonePreset): string {
@@ -165,6 +199,195 @@ function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
     response_format: { type: "json_object" as const },
     max_tokens: 1200,
   };
+}
+
+function parseReplySuggestions(raw: string): AIReplySuggestions | null {
+  const tryParse = (text: string): AIReplySuggestions | null => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return null;
+    }
+
+    if (typeof parsed !== "object" || parsed === null) {
+      return null;
+    }
+
+    const replies = (parsed as { replies?: unknown }).replies;
+    if (!Array.isArray(replies)) {
+      return null;
+    }
+
+    const normalizedReplies: AIReplyOption[] = [];
+    for (const reply of replies) {
+      if (typeof reply !== "object" || reply === null) {
+        return null;
+      }
+      const option = reply as { type?: unknown; text?: unknown };
+      if (typeof option.type !== "string" || typeof option.text !== "string") {
+        return null;
+      }
+      normalizedReplies.push({ type: option.type, text: option.text });
+    }
+
+    return { replies: normalizedReplies };
+  };
+
+  const direct = tryParse(raw);
+  if (direct) {
+    return direct;
+  }
+
+  const match = raw.match(/{.*}/s);
+  return match ? tryParse(match[0]) : null;
+}
+
+function displayNameOrFallback(value: string | undefined, fallback: string): string {
+  const name = value?.trim() ?? "";
+  if (!name || name.includes("@")) {
+    return fallback;
+  }
+  return name;
+}
+
+function trimBlankLines(lines: string[]): string[] {
+  let start = 0;
+  let end = lines.length;
+
+  while (start < end && lines[start].trim() === "") {
+    start++;
+  }
+  while (end > start && lines[end - 1].trim() === "") {
+    end--;
+  }
+
+  return lines.slice(start, end);
+}
+
+function isGreetingLine(line: string): boolean {
+  return greetingPhraseFromLine(line) !== null;
+}
+
+function greetingPhraseFromLine(line: string): string | null {
+  const trimmed = line.trim();
+  const lower = trimmed.toLowerCase();
+  if (!lower.endsWith(",")) {
+    return null;
+  }
+
+  const phrases = Array.from(KNOWN_GREETING_PHRASES).sort(
+    (a, b) => b.length - a.length,
+  );
+  const phrase = phrases.find(
+    (candidate) =>
+      lower === `${candidate},` || lower.startsWith(`${candidate} `),
+  );
+
+  return phrase ? phrase[0].toUpperCase() + phrase.slice(1) : null;
+}
+
+function signOffPhraseFromLine(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 50 || trimmed.includes("@")) {
+    return null;
+  }
+
+  const phrase = trimmed.includes(",")
+    ? `${trimmed.split(",")[0].trim()},`
+    : `${trimmed},`;
+
+  const phraseWithoutComma = phrase.replace(/,$/, "").toLowerCase();
+  return KNOWN_SIGN_OFFS.has(phraseWithoutComma) ? phrase : null;
+}
+
+function isLikelyNameLine(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    trimmed.length > 0 &&
+    trimmed.length <= 50 &&
+    !trimmed.includes("@") &&
+    !/[,.!?;:]/.test(trimmed)
+  );
+}
+
+function removeTrailingSignOff(lines: string[]): {
+  bodyLines: string[];
+  signOffPhrase: string;
+} {
+  const nonEmptyIndexes = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.trim() !== "");
+
+  if (nonEmptyIndexes.length === 0) {
+    return { bodyLines: [], signOffPhrase: "Best," };
+  }
+
+  const last = nonEmptyIndexes[nonEmptyIndexes.length - 1];
+  const previous = nonEmptyIndexes[nonEmptyIndexes.length - 2];
+  const lastLineSignOff = signOffPhraseFromLine(last.line);
+  const previousLineSignOff = previous
+    ? signOffPhraseFromLine(previous.line)
+    : null;
+
+  if (previousLineSignOff && isLikelyNameLine(last.line)) {
+    return {
+      bodyLines: trimBlankLines(lines.slice(0, previous.index)),
+      signOffPhrase: previousLineSignOff,
+    };
+  }
+
+  if (lastLineSignOff) {
+    return {
+      bodyLines: trimBlankLines(lines.slice(0, last.index)),
+      signOffPhrase: lastLineSignOff,
+    };
+  }
+
+  return { bodyLines: lines, signOffPhrase: "Best," };
+}
+
+function removeEmDashes(text: string): string {
+  return text.replace(/—/g, "-");
+}
+
+function enforceReplyLayout(text: string, email: ParsedEmail): string {
+  const greetingName = displayNameOrFallback(email.fromName, "");
+  const userName = displayNameOrFallback(email.userName, "[your name here]");
+
+  let lines = trimBlankLines(
+    removeEmDashes(text)
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.trimEnd()),
+  );
+
+  let greetingPhrase = "Hi";
+  if (lines.length > 0 && isGreetingLine(lines[0])) {
+    greetingPhrase = greetingPhraseFromLine(lines[0]) ?? greetingPhrase;
+    lines = trimBlankLines(lines.slice(1));
+  }
+
+  const { bodyLines, signOffPhrase } = removeTrailingSignOff(lines);
+  const greeting = greetingName
+    ? `${greetingPhrase} ${greetingName},`
+    : `${greetingPhrase} there,`;
+
+  return [greeting, "", ...bodyLines, "", signOffPhrase, "", userName].join("\n");
+}
+
+function normalizeReplyContent(raw: string, email: ParsedEmail): string {
+  const suggestions = parseReplySuggestions(raw);
+  if (!suggestions) {
+    return raw;
+  }
+
+  return JSON.stringify({
+    replies: suggestions.replies.map((reply) => ({
+      type: reply.type,
+      text: enforceReplyLayout(reply.text, email),
+    })),
+  });
 }
 
 function validateBody(body: unknown): body is RequestBody {
@@ -314,7 +537,6 @@ export default {
       return json({ error: "missing content from upstream" }, 502, origin);
     }
 
-    // Forward the raw AI content string; the extension's parseAIResponse handles it.
-    return json({ content }, 200, origin);
+    return json({ content: normalizeReplyContent(content, body.email) }, 200, origin);
   },
 };
