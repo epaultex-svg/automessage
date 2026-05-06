@@ -7,7 +7,7 @@
  *   - DOM injection / UI updates (inject.ts)
  */
 
-import { startThreadDetection } from "./gmail/dom";
+import { getThreadId, startThreadDetection } from "./gmail/dom";
 import { parseCurrentThread } from "./gmail/parser";
 import {
   ensureInjected,
@@ -112,7 +112,12 @@ function requestSuggestions(threadId: string, attempt = 0): void {
   };
 
   chrome.runtime.sendMessage(msg, (response: ExtensionMessage | undefined) => {
+    const currentThreadId = getThreadId();
     if (chrome.runtime.lastError) {
+      if (currentThreadId !== threadId) {
+        console.debug(LOG_PREFIX, "ignoring stale sendMessage error for", threadId);
+        return;
+      }
       console.error(LOG_PREFIX, "sendMessage error:", chrome.runtime.lastError.message);
       updateInjectedState(
         {
@@ -125,6 +130,10 @@ function requestSuggestions(threadId: string, attempt = 0): void {
     }
 
     if (!response) {
+      if (currentThreadId !== threadId) {
+        console.debug(LOG_PREFIX, "ignoring stale empty response for", threadId);
+        return;
+      }
       updateInjectedState(
         {
           status: "error",
@@ -133,6 +142,14 @@ function requestSuggestions(threadId: string, attempt = 0): void {
         },
         callbacks,
       );
+      return;
+    }
+
+    if (
+      (response.type === "REPLIES_SUCCESS" || response.type === "REPLIES_ERROR") &&
+      (response.payload.threadId !== threadId || currentThreadId !== threadId)
+    ) {
+      console.debug(LOG_PREFIX, "ignoring stale replies for", response.payload.threadId);
       return;
     }
 
