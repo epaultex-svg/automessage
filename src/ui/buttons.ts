@@ -307,9 +307,9 @@ function makeSettingsBody(
       "am-model",
       "Model",
       [
-        ["anthropic/claude-3-haiku", "anthropic/claude-3-haiku"],
-        ["qwen/qwen3-next-80b-a3b-instruct", "Qwen3 Next 80B Instruct (paid)"],
-        ["openai/gpt-4o-mini", "openai/gpt-4o-mini"],
+        ["gpt-oss-120b:free", "gpt-oss-120b:free"],
+        ["gemma-4-31b-it:free", "gemma-4-31b-it:free"],
+        ["nemotron-3-super:free", "nemotron-3-super:free"],
       ],
     ),
   );

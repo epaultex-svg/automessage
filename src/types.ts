@@ -11,12 +11,12 @@ export interface Settings {
   tone: TonePreset;
 }
 
-export const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
-export const QWEN_FREE_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
-export const CLAUDE_HAIKU_MODEL = "anthropic/claude-3-haiku";
+export const GPT_OSS_120B_MODEL = "gpt-oss-120b:free";
+export const GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
+export const NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
 
 export const DEFAULT_SETTINGS: Settings = {
-  model: CLAUDE_HAIKU_MODEL,
+  model: GPT_OSS_120B_MODEL,
   tone: "professional",
 };
 
