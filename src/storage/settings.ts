@@ -1,16 +1,25 @@
 import type { Settings } from "../types";
 import {
-  CLAUDE_HAIKU_MODEL,
   DEFAULT_SETTINGS,
-  QWEN_FREE_MODEL,
+  GEMMA_4_31B_MODEL,
+  GPT_OSS_120B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
 } from "../types";
 
 const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
 
+const MODEL_ALIASES: Record<string, string> = {
+  "gpt-oss-120b:free": GPT_OSS_120B_MODEL,
+  "gemma-4-31b-it:free": GEMMA_4_31B_MODEL,
+  "nemotron-3-super:free": NEMOTRON_3_SUPER_MODEL,
+  "qwen/qwen3-next-80b-a3b-instruct:free": DEFAULT_SETTINGS.model,
+};
+
 function normalizeModel(model: string): string {
-  return model === QWEN_FREE_MODEL ? CLAUDE_HAIKU_MODEL : model;
+  const trimmed = model.trim();
+  return MODEL_ALIASES[trimmed] ?? trimmed;
 }
 
 /**
