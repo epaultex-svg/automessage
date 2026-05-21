@@ -45,13 +45,21 @@ interface AIReplySuggestions {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "anthropic/claude-3-haiku";
+const GPT_OSS_120B_MODEL = "gpt-oss-120b:free";
+const GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
+const NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
+const DEFAULT_MODEL = GPT_OSS_120B_MODEL;
+const CLAUDE_HAIKU_MODEL = "anthropic/claude-3-haiku";
 const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
 const LEGACY_FREE_QWEN_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
 
 const ALLOWED_MODELS = new Set([
   DEFAULT_MODEL,
+  GEMMA_4_31B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
+  CLAUDE_HAIKU_MODEL,
   QWEN_PAID_MODEL,
+  LEGACY_FREE_QWEN_MODEL,
   "openai/gpt-4o-mini",
 ]);
 

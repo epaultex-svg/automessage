@@ -1,16 +1,13 @@
 import type { Settings } from "../types";
-import {
-  CLAUDE_HAIKU_MODEL,
-  DEFAULT_SETTINGS,
-  QWEN_FREE_MODEL,
-} from "../types";
+import { DEFAULT_SETTINGS } from "../types";
 
 const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
+const LEGACY_QWEN_FREE_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
 
 function normalizeModel(model: string): string {
-  return model === QWEN_FREE_MODEL ? CLAUDE_HAIKU_MODEL : model;
+  return model === LEGACY_QWEN_FREE_MODEL ? DEFAULT_SETTINGS.model : model;
 }
 
 /**
