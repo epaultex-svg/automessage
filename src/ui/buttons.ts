@@ -307,9 +307,9 @@ function makeSettingsBody(
       "am-model",
       "Model",
       [
-        ["gpt-oss-120b:free", "gpt-oss-120b:free"],
-        ["gemma-4-31b-it:free", "gemma-4-31b-it:free"],
-        ["nemotron-3-super:free", "nemotron-3-super:free"],
+        ["openai/gpt-oss-120b:free", "openai/gpt-oss-120b:free"],
+        ["google/gemma-4-31b-it:free", "google/gemma-4-31b-it:free"],
+        ["nvidia/nemotron-3-super-120b-a12b:free", "nvidia/nemotron-3-super-120b-a12b:free"],
       ],
     ),
   );
