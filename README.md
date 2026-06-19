@@ -171,11 +171,11 @@ Automessage/
 
 ## Customising the AI model
 
-The default model is `anthropic/claude-3-haiku`. You can change it in the popup or the inline settings gear. Supported models:
+The default model is `openai/gpt-oss-120b:free`. You can change it in the popup or the inline settings gear. Supported models:
 
-- `anthropic/claude-3-haiku` — fast, high quality (default)
-- `qwen/qwen3-next-80b-a3b-instruct` — paid tier
-- `openai/gpt-4o-mini` — fast and cheap
+- `openai/gpt-oss-120b:free`
+- `google/gemma-4-31b-it:free`
+- `nvidia/nemotron-3-super-120b-a12b:free`
 
 See the full list at [openrouter.ai/models](https://openrouter.ai/models).
 
