@@ -1,16 +1,20 @@
 import type { Settings } from "../types";
-import {
-  CLAUDE_HAIKU_MODEL,
-  DEFAULT_SETTINGS,
-  QWEN_FREE_MODEL,
-} from "../types";
+import { DEFAULT_SETTINGS } from "../types";
 
 const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
 
+const LEGACY_MODELS = new Set([
+  "anthropic/claude-3-haiku",
+  "qwen/qwen3-next-80b-a3b-instruct",
+  "qwen/qwen3-next-80b-a3b-instruct:free",
+  "openai/gpt-4o-mini",
+]);
+
 function normalizeModel(model: string): string {
-  return model === QWEN_FREE_MODEL ? CLAUDE_HAIKU_MODEL : model;
+  const trimmed = model.trim();
+  return LEGACY_MODELS.has(trimmed) ? DEFAULT_SETTINGS.model : trimmed;
 }
 
 /**
