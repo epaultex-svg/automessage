@@ -45,14 +45,20 @@ interface AIReplySuggestions {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "anthropic/claude-3-haiku";
-const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
-const LEGACY_FREE_QWEN_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+const DEFAULT_MODEL = "gpt-oss-120b:free";
+const GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
+const NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
 
 const ALLOWED_MODELS = new Set([
   DEFAULT_MODEL,
-  QWEN_PAID_MODEL,
+  GEMMA_4_31B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
+]);
+const LEGACY_MODELS = new Set([
+  "anthropic/claude-3-haiku",
   "openai/gpt-4o-mini",
+  "qwen/qwen3-next-80b-a3b-instruct",
+  "qwen/qwen3-next-80b-a3b-instruct:free",
 ]);
 
 const VALID_TONES: ReadonlySet<string> = new Set([
@@ -188,8 +194,7 @@ Generate 3 distinct typed reply options.`;
 
 function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
   const requestedModel = settings.model?.trim() !== "" ? settings.model : DEFAULT_MODEL;
-  const model =
-    requestedModel === LEGACY_FREE_QWEN_MODEL ? DEFAULT_MODEL : requestedModel;
+  const model = LEGACY_MODELS.has(requestedModel) ? DEFAULT_MODEL : requestedModel;
   return {
     model,
     messages: [
@@ -429,7 +434,9 @@ function validateBody(body: unknown): body is RequestBody {
   if (typeof s["tone"] !== "string" || !VALID_TONES.has(s["tone"])) return false;
   if (typeof s["model"] !== "string") return false;
   const model = (s["model"] as string).trim();
-  if (model !== "" && !ALLOWED_MODELS.has(model)) return false;
+  if (model !== "" && !ALLOWED_MODELS.has(model) && !LEGACY_MODELS.has(model)) {
+    return false;
+  }
 
   return true;
 }
