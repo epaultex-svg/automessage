@@ -1,12 +1,20 @@
 import type { Settings } from "../types";
 import {
   DEFAULT_SETTINGS,
+  GEMMA_4_31B_MODEL,
+  GPT_OSS_120B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
   SUPPORTED_MODELS,
 } from "../types";
 
 const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
+const MODEL_ALIASES = new Map([
+  ["gpt-oss-120b:free", GPT_OSS_120B_MODEL],
+  ["gemma-4-31b-it:free", GEMMA_4_31B_MODEL],
+  ["nemotron-3-super:free", NEMOTRON_3_SUPER_MODEL],
+]);
 const LEGACY_MODELS = new Set([
   "anthropic/claude-3-haiku",
   "openai/gpt-4o-mini",
@@ -18,6 +26,10 @@ function normalizeModel(model: string): string {
   const trimmed = model.trim();
   if (SUPPORTED_MODELS.some((supported) => supported === trimmed)) {
     return trimmed;
+  }
+  const alias = MODEL_ALIASES.get(trimmed);
+  if (alias) {
+    return alias;
   }
   if (LEGACY_MODELS.has(trimmed)) {
     return DEFAULT_SETTINGS.model;

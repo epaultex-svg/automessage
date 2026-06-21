@@ -11,9 +11,9 @@ export interface Settings {
   tone: TonePreset;
 }
 
-export const GPT_OSS_120B_MODEL = "gpt-oss-120b:free";
-export const GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
-export const NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
+export const GPT_OSS_120B_MODEL = "openai/gpt-oss-120b:free";
+export const GEMMA_4_31B_MODEL = "google/gemma-4-31b-it:free";
+export const NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 export const SUPPORTED_MODELS = [
   GPT_OSS_120B_MODEL,
   GEMMA_4_31B_MODEL,
