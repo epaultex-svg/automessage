@@ -45,14 +45,25 @@ interface AIReplySuggestions {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "anthropic/claude-3-haiku";
-const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
-const LEGACY_FREE_QWEN_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+const GPT_OSS_120B_MODEL = "openai/gpt-oss-120b:free";
+const GEMMA_4_31B_MODEL = "google/gemma-4-31b-it:free";
+const NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+const DEFAULT_MODEL = GPT_OSS_120B_MODEL;
 
 const ALLOWED_MODELS = new Set([
-  DEFAULT_MODEL,
-  QWEN_PAID_MODEL,
-  "openai/gpt-4o-mini",
+  GPT_OSS_120B_MODEL,
+  GEMMA_4_31B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
+]);
+
+const LEGACY_MODEL_ALIASES = new Map<string, string>([
+  ["gpt-oss-120b:free", GPT_OSS_120B_MODEL],
+  ["gemma-4-31b-it:free", GEMMA_4_31B_MODEL],
+  ["nemotron-3-super:free", NEMOTRON_3_SUPER_MODEL],
+  ["anthropic/claude-3-haiku", DEFAULT_MODEL],
+  ["qwen/qwen3-next-80b-a3b-instruct", DEFAULT_MODEL],
+  ["qwen/qwen3-next-80b-a3b-instruct:free", DEFAULT_MODEL],
+  ["openai/gpt-4o-mini", DEFAULT_MODEL],
 ]);
 
 const VALID_TONES: ReadonlySet<string> = new Set([
@@ -186,12 +197,21 @@ ${TONE_INSTRUCTIONS[tone]}
 Generate 3 distinct typed reply options.`;
 }
 
+function canonicalizeModel(model: string): string {
+  const requestedModel = model.trim();
+  if (requestedModel === "") {
+    return DEFAULT_MODEL;
+  }
+  return LEGACY_MODEL_ALIASES.get(requestedModel) ?? requestedModel;
+}
+
+function isAllowedModel(model: string): boolean {
+  return ALLOWED_MODELS.has(canonicalizeModel(model));
+}
+
 function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
-  const requestedModel = settings.model?.trim() !== "" ? settings.model : DEFAULT_MODEL;
-  const model =
-    requestedModel === LEGACY_FREE_QWEN_MODEL ? DEFAULT_MODEL : requestedModel;
   return {
-    model,
+    model: canonicalizeModel(settings.model),
     messages: [
       { role: "system" as const, content: SYSTEM_PROMPT },
       { role: "user" as const, content: buildUserPrompt(email, settings.tone) },
@@ -429,7 +449,7 @@ function validateBody(body: unknown): body is RequestBody {
   if (typeof s["tone"] !== "string" || !VALID_TONES.has(s["tone"])) return false;
   if (typeof s["model"] !== "string") return false;
   const model = (s["model"] as string).trim();
-  if (model !== "" && !ALLOWED_MODELS.has(model)) return false;
+  if (model !== "" && !isAllowedModel(model)) return false;
 
   return true;
 }
