@@ -7,7 +7,7 @@
  *   - DOM injection / UI updates (inject.ts)
  */
 
-import { startThreadDetection } from "./gmail/dom";
+import { getThreadId, startThreadDetection } from "./gmail/dom";
 import { parseCurrentThread } from "./gmail/parser";
 import {
   ensureInjected,
@@ -85,12 +85,21 @@ function onThreadChange(threadId: string): void {
 
 const RETRY_DELAYS_MS = [500, 1500, 3000] as const;
 
+function isCurrentThread(threadId: string): boolean {
+  return getThreadId() === threadId;
+}
+
 function requestSuggestions(threadId: string, attempt = 0): void {
+  if (!isCurrentThread(threadId)) {
+    console.debug(LOG_PREFIX, "skipping stale request for inactive thread", threadId);
+    return;
+  }
+
   const parsed = parseCurrentThread(threadId);
 
   if (!parsed) {
     const delay = RETRY_DELAYS_MS[attempt];
-    if (delay !== undefined && window.location.href.includes(threadId)) {
+    if (delay !== undefined && isCurrentThread(threadId)) {
       setTimeout(() => requestSuggestions(threadId, attempt + 1), delay);
     } else {
       console.debug(LOG_PREFIX, "parseCurrentThread returned null, aborting after retries");
@@ -112,6 +121,11 @@ function requestSuggestions(threadId: string, attempt = 0): void {
   };
 
   chrome.runtime.sendMessage(msg, (response: ExtensionMessage | undefined) => {
+    if (!isCurrentThread(threadId)) {
+      console.debug(LOG_PREFIX, "ignoring stale response for inactive thread", threadId);
+      return;
+    }
+
     if (chrome.runtime.lastError) {
       console.error(LOG_PREFIX, "sendMessage error:", chrome.runtime.lastError.message);
       updateInjectedState(
@@ -137,6 +151,13 @@ function requestSuggestions(threadId: string, attempt = 0): void {
     }
 
     if (response.type === "REPLIES_SUCCESS") {
+      if (response.payload.threadId !== threadId) {
+        console.debug(LOG_PREFIX, "ignoring mismatched response thread", {
+          expected: threadId,
+          actual: response.payload.threadId,
+        });
+        return;
+      }
       lastGeneratedThreadId = response.payload.threadId;
       const successState = {
         status: "success" as const,
@@ -168,7 +189,7 @@ function requestSuggestions(threadId: string, attempt = 0): void {
 function startRestorePoll(threadId: string): void {
   clearRestorePoll();
   restorePollId = setInterval(() => {
-    if (!window.location.href.includes(threadId) || !lastSuccessState || !activeCallbacks) {
+    if (!isCurrentThread(threadId) || !lastSuccessState || !activeCallbacks) {
       clearRestorePoll();
       return;
     }
@@ -197,7 +218,7 @@ function makeCallbacks(threadId: string) {
       // our row. Re-assert the suggestion row after a short tick so the user
       // can still select a different reply or see the other options.
       setTimeout(() => {
-        if (lastSuccessState && activeCallbacks) {
+        if (isCurrentThread(threadId) && lastSuccessState && activeCallbacks) {
           ensureInjected(lastSuccessState, activeCallbacks);
         }
       }, 400);
@@ -222,6 +243,10 @@ function makeCallbacks(threadId: string) {
           return;
         }
         if (response?.type === "SETTINGS_SAVED" && response.payload.success) {
+          if (!isCurrentThread(threadId)) {
+            console.debug(LOG_PREFIX, "skipping settings refresh for inactive thread", threadId);
+            return;
+          }
           console.debug(LOG_PREFIX, "settings saved, refreshing suggestions");
           lastGeneratedThreadId = null;
           lastSuccessState = null;
