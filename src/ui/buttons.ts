@@ -5,7 +5,12 @@
  */
 
 import type { AIReplyOptionTuple, Settings, SuggestionState, TonePreset } from "../types";
-import { DEFAULT_SETTINGS } from "../types";
+import {
+  DEFAULT_SETTINGS,
+  GEMMA_4_31B_MODEL,
+  GPT_OSS_120B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
+} from "../types";
 
 const LOG_PREFIX = "[Automessage/buttons]";
 
@@ -307,9 +312,9 @@ function makeSettingsBody(
       "am-model",
       "Model",
       [
-        ["gpt-oss-120b:free", "gpt-oss-120b:free"],
-        ["gemma-4-31b-it:free", "gemma-4-31b-it:free"],
-        ["nemotron-3-super:free", "nemotron-3-super:free"],
+        [GPT_OSS_120B_MODEL, GPT_OSS_120B_MODEL],
+        [GEMMA_4_31B_MODEL, GEMMA_4_31B_MODEL],
+        [NEMOTRON_3_SUPER_MODEL, NEMOTRON_3_SUPER_MODEL],
       ],
     ),
   );

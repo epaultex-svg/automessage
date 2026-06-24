@@ -1,16 +1,34 @@
 import type { Settings } from "../types";
 import {
-  CLAUDE_HAIKU_MODEL,
   DEFAULT_SETTINGS,
-  QWEN_FREE_MODEL,
+  GEMMA_4_31B_MODEL,
+  GPT_OSS_120B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
+  SUPPORTED_MODELS,
 } from "../types";
 
 const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
 
+const SUPPORTED_MODEL_SET = new Set<string>(SUPPORTED_MODELS);
+const LEGACY_MODEL_ALIASES: Record<string, string> = {
+  "anthropic/claude-3-haiku": DEFAULT_SETTINGS.model,
+  "openai/gpt-4o-mini": DEFAULT_SETTINGS.model,
+  "qwen/qwen3-next-80b-a3b-instruct": DEFAULT_SETTINGS.model,
+  "qwen/qwen3-next-80b-a3b-instruct:free": DEFAULT_SETTINGS.model,
+  "gpt-oss-120b:free": GPT_OSS_120B_MODEL,
+  "gemma-4-31b-it:free": GEMMA_4_31B_MODEL,
+  "nemotron-3-super:free": NEMOTRON_3_SUPER_MODEL,
+};
+
 function normalizeModel(model: string): string {
-  return model === QWEN_FREE_MODEL ? CLAUDE_HAIKU_MODEL : model;
+  const trimmed = model.trim();
+  const aliased = LEGACY_MODEL_ALIASES[trimmed];
+  if (aliased) {
+    return aliased;
+  }
+  return SUPPORTED_MODEL_SET.has(trimmed) ? trimmed : DEFAULT_SETTINGS.model;
 }
 
 /**
