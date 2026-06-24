@@ -268,7 +268,8 @@ export function extractUserName(doc: Document = document): string {
 }
 
 /**
- * FNV-1a 32-bit over prompt-affecting email fields; returned as 8-char lowercase hex.
+ * FNV-1a 32-bit over prompt-affecting email fields and thread identity;
+ * returned as 8-char lowercase hex.
  * Fast, non-cryptographic cache key.
  */
 export function hashEmail(
@@ -277,8 +278,9 @@ export function hashEmail(
   fromName = "",
   fromEmail = "",
   userName = "",
+  threadId = "",
 ): string {
-  const input = `${subject}\0${body}\0${fromName}\0${fromEmail}\0${userName}`;
+  const input = `${threadId}\0${subject}\0${body}\0${fromName}\0${fromEmail}\0${userName}`;
   let h = 0x811c9dc5 >>> 0;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
