@@ -45,15 +45,25 @@ interface AIReplySuggestions {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "anthropic/claude-3-haiku";
-const QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
-const LEGACY_FREE_QWEN_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+const DEFAULT_MODEL = "openai/gpt-oss-120b:free";
+const GEMMA_4_31B_MODEL = "google/gemma-4-31b-it:free";
+const NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 
 const ALLOWED_MODELS = new Set([
   DEFAULT_MODEL,
-  QWEN_PAID_MODEL,
-  "openai/gpt-4o-mini",
+  GEMMA_4_31B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
 ]);
+
+const MODEL_ALIASES: Record<string, string> = {
+  "gpt-oss-120b:free": DEFAULT_MODEL,
+  "gemma-4-31b-it:free": GEMMA_4_31B_MODEL,
+  "nemotron-3-super:free": NEMOTRON_3_SUPER_MODEL,
+  "anthropic/claude-3-haiku": DEFAULT_MODEL,
+  "openai/gpt-4o-mini": DEFAULT_MODEL,
+  "qwen/qwen3-next-80b-a3b-instruct": DEFAULT_MODEL,
+  "qwen/qwen3-next-80b-a3b-instruct:free": DEFAULT_MODEL,
+};
 
 const VALID_TONES: ReadonlySet<string> = new Set([
   "professional",
@@ -186,12 +196,17 @@ ${TONE_INSTRUCTIONS[tone]}
 Generate 3 distinct typed reply options.`;
 }
 
+function normalizeModel(model: string): string {
+  const trimmed = model.trim();
+  if (trimmed === "") {
+    return DEFAULT_MODEL;
+  }
+  return MODEL_ALIASES[trimmed] ?? trimmed;
+}
+
 function buildUpstreamBody(email: ParsedEmail, settings: Settings) {
-  const requestedModel = settings.model?.trim() !== "" ? settings.model : DEFAULT_MODEL;
-  const model =
-    requestedModel === LEGACY_FREE_QWEN_MODEL ? DEFAULT_MODEL : requestedModel;
   return {
-    model,
+    model: normalizeModel(settings.model),
     messages: [
       { role: "system" as const, content: SYSTEM_PROMPT },
       { role: "user" as const, content: buildUserPrompt(email, settings.tone) },
@@ -428,8 +443,8 @@ function validateBody(body: unknown): body is RequestBody {
   const s = settings as Record<string, unknown>;
   if (typeof s["tone"] !== "string" || !VALID_TONES.has(s["tone"])) return false;
   if (typeof s["model"] !== "string") return false;
-  const model = (s["model"] as string).trim();
-  if (model !== "" && !ALLOWED_MODELS.has(model)) return false;
+  const model = normalizeModel(s["model"] as string);
+  if (!ALLOWED_MODELS.has(model)) return false;
 
   return true;
 }
