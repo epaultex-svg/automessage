@@ -2,6 +2,11 @@ import type { Settings } from "../types";
 import {
   CLAUDE_HAIKU_MODEL,
   DEFAULT_SETTINGS,
+  GEMMA_4_31B_MODEL,
+  GPT_4O_MINI_MODEL,
+  GPT_OSS_120B_MODEL,
+  NEMOTRON_3_SUPER_MODEL,
+  QWEN_PAID_MODEL,
   QWEN_FREE_MODEL,
 } from "../types";
 
@@ -9,8 +14,19 @@ const LOG_PREFIX = "[Automessage/settings]";
 
 const STORAGE_KEY = "automessage_settings";
 
+const MODEL_ALIASES: Readonly<Record<string, string>> = {
+  "gpt-oss-120b:free": GPT_OSS_120B_MODEL,
+  "gemma-4-31b-it:free": GEMMA_4_31B_MODEL,
+  "nemotron-3-super:free": NEMOTRON_3_SUPER_MODEL,
+  [CLAUDE_HAIKU_MODEL]: DEFAULT_SETTINGS.model,
+  [QWEN_PAID_MODEL]: DEFAULT_SETTINGS.model,
+  [QWEN_FREE_MODEL]: DEFAULT_SETTINGS.model,
+  [GPT_4O_MINI_MODEL]: DEFAULT_SETTINGS.model,
+};
+
 function normalizeModel(model: string): string {
-  return model === QWEN_FREE_MODEL ? CLAUDE_HAIKU_MODEL : model;
+  const trimmed = model.trim();
+  return MODEL_ALIASES[trimmed] ?? trimmed;
 }
 
 /**
