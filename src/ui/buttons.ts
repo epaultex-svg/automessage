@@ -5,7 +5,7 @@
  */
 
 import type { AIReplyOptionTuple, Settings, SuggestionState, TonePreset } from "../types";
-import { DEFAULT_SETTINGS } from "../types";
+import { DEFAULT_SETTINGS, MODEL_OPTIONS } from "../types";
 
 const LOG_PREFIX = "[Automessage/buttons]";
 
@@ -306,11 +306,7 @@ function makeSettingsBody(
     makeSettingsField(
       "am-model",
       "Model",
-      [
-        ["gpt-oss-120b:free", "gpt-oss-120b:free"],
-        ["gemma-4-31b-it:free", "gemma-4-31b-it:free"],
-        ["nemotron-3-super:free", "nemotron-3-super:free"],
-      ],
+      MODEL_OPTIONS,
     ),
   );
   form.appendChild(
@@ -368,7 +364,7 @@ function makeSettingsBody(
 function makeSettingsField(
   id: string,
   labelText: string,
-  options: Array<[string, string]>,
+  options: ReadonlyArray<readonly [string, string]>,
 ): HTMLDivElement {
   const field = document.createElement("div");
   field.className = "am-settings-field";

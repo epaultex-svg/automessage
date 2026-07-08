@@ -7,6 +7,7 @@
     "prebuild": "node scripts/make-icons.js",
     "build": "webpack --mode production",
     "build:zip": "npm run build && zip -r automessage.zip manifest.json dist/ popup/popup.html styles/ icons/",
+    "test:model-contract": "node scripts/check-model-contract.js",
     "watch": "webpack --mode development --watch",
     "dev": "webpack --mode development"
   },
