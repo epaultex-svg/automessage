@@ -11,9 +11,24 @@ export interface Settings {
   tone: TonePreset;
 }
 
-export const GPT_OSS_120B_MODEL = "gpt-oss-120b:free";
-export const GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
-export const NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
+export const GPT_OSS_120B_MODEL = "openai/gpt-oss-120b:free";
+export const GEMMA_4_31B_MODEL = "google/gemma-4-31b-it:free";
+export const NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+
+export const MODEL_OPTIONS = [
+  [GPT_OSS_120B_MODEL, GPT_OSS_120B_MODEL],
+  [GEMMA_4_31B_MODEL, GEMMA_4_31B_MODEL],
+  [NEMOTRON_3_SUPER_MODEL, NEMOTRON_3_SUPER_MODEL],
+] as const satisfies readonly (readonly [string, string])[];
+
+export const LEGACY_CLAUDE_HAIKU_MODEL = "anthropic/claude-3-haiku";
+export const LEGACY_QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
+export const LEGACY_QWEN_FREE_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+export const LEGACY_GPT_4O_MINI_MODEL = "openai/gpt-4o-mini";
+export const UNPREFIXED_GPT_OSS_120B_MODEL = "gpt-oss-120b:free";
+export const UNPREFIXED_GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
+export const UNPREFIXED_NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
+export const LEGACY_NVIDIA_NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super:free";
 
 export const DEFAULT_SETTINGS: Settings = {
   model: GPT_OSS_120B_MODEL,
