@@ -12,10 +12,10 @@ const CANONICAL_MODELS = [
 ];
 
 const LEGACY_ALIASES = [
-  ["gpt-oss-120b:free", '"gpt-oss-120b:free"'],
-  ["gemma-4-31b-it:free", '"gemma-4-31b-it:free"'],
-  ["nemotron-3-super:free", '"nemotron-3-super:free"'],
-  ["nvidia/nemotron-3-super:free", '"nvidia/nemotron-3-super:free"'],
+  ["gpt-oss-120b:free", "UNPREFIXED_GPT_OSS_120B_MODEL"],
+  ["gemma-4-31b-it:free", "UNPREFIXED_GEMMA_4_31B_MODEL"],
+  ["nemotron-3-super:free", "UNPREFIXED_NEMOTRON_3_SUPER_MODEL"],
+  ["nvidia/nemotron-3-super:free", "LEGACY_NVIDIA_NEMOTRON_3_SUPER_MODEL"],
   ["anthropic/claude-3-haiku", "LEGACY_CLAUDE_HAIKU_MODEL"],
   ["qwen/qwen3-next-80b-a3b-instruct", "LEGACY_QWEN_PAID_MODEL"],
   ["qwen/qwen3-next-80b-a3b-instruct:free", "LEGACY_QWEN_FREE_MODEL"],

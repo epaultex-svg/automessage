@@ -25,6 +25,10 @@ export const LEGACY_CLAUDE_HAIKU_MODEL = "anthropic/claude-3-haiku";
 export const LEGACY_QWEN_PAID_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
 export const LEGACY_QWEN_FREE_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
 export const LEGACY_GPT_4O_MINI_MODEL = "openai/gpt-4o-mini";
+export const UNPREFIXED_GPT_OSS_120B_MODEL = "gpt-oss-120b:free";
+export const UNPREFIXED_GEMMA_4_31B_MODEL = "gemma-4-31b-it:free";
+export const UNPREFIXED_NEMOTRON_3_SUPER_MODEL = "nemotron-3-super:free";
+export const LEGACY_NVIDIA_NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super:free";
 
 export const DEFAULT_SETTINGS: Settings = {
   model: GPT_OSS_120B_MODEL,
