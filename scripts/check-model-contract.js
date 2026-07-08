@@ -12,14 +12,14 @@ const CANONICAL_MODELS = [
 ];
 
 const LEGACY_ALIASES = [
-  "gpt-oss-120b:free",
-  "gemma-4-31b-it:free",
-  "nemotron-3-super:free",
-  "nvidia/nemotron-3-super:free",
-  "anthropic/claude-3-haiku",
-  "qwen/qwen3-next-80b-a3b-instruct",
-  "qwen/qwen3-next-80b-a3b-instruct:free",
-  "openai/gpt-4o-mini",
+  ["gpt-oss-120b:free", '"gpt-oss-120b:free"'],
+  ["gemma-4-31b-it:free", '"gemma-4-31b-it:free"'],
+  ["nemotron-3-super:free", '"nemotron-3-super:free"'],
+  ["nvidia/nemotron-3-super:free", '"nvidia/nemotron-3-super:free"'],
+  ["anthropic/claude-3-haiku", "LEGACY_CLAUDE_HAIKU_MODEL"],
+  ["qwen/qwen3-next-80b-a3b-instruct", "LEGACY_QWEN_PAID_MODEL"],
+  ["qwen/qwen3-next-80b-a3b-instruct:free", "LEGACY_QWEN_FREE_MODEL"],
+  ["openai/gpt-4o-mini", "LEGACY_GPT_4O_MINI_MODEL"],
 ];
 
 const files = {
@@ -49,8 +49,9 @@ for (const model of CANONICAL_MODELS) {
   assertContains("worker", read(files.worker), model);
 }
 
-for (const alias of LEGACY_ALIASES) {
-  assertContains("storage", read(files.storage), alias);
+for (const [alias, storageMarker] of LEGACY_ALIASES) {
+  assertContains("types", read(files.types), alias);
+  assertContains("storage", read(files.storage), storageMarker);
   assertContains("worker", read(files.worker), alias);
 }
 
