@@ -293,25 +293,20 @@ function signOffPhraseFromLine(line: string): string | null {
     return null;
   }
 
-  const phrase = trimmed.includes(",")
-    ? `${trimmed.split(",")[0].trim()},`
-    : `${trimmed},`;
-
-  const phraseWithoutComma = phrase.replace(/,$/, "").toLowerCase();
-  return KNOWN_SIGN_OFFS.has(phraseWithoutComma) ? phrase : null;
+  const phraseWithoutComma = trimmed.replace(/,$/, "").trim();
+  return KNOWN_SIGN_OFFS.has(phraseWithoutComma.toLowerCase())
+    ? `${phraseWithoutComma},`
+    : null;
 }
 
-function isLikelyNameLine(line: string): boolean {
-  const trimmed = line.trim();
-  return (
-    trimmed.length > 0 &&
-    trimmed.length <= 50 &&
-    !trimmed.includes("@") &&
-    !/[,.!?;:]/.test(trimmed)
-  );
+function isExpectedSignatureLine(line: string, expectedUserName: string): boolean {
+  const normalize = (value: string): string =>
+    value.trim().replace(/\s+/g, " ").toLowerCase();
+
+  return normalize(line) === normalize(expectedUserName);
 }
 
-function removeTrailingSignOff(lines: string[]): {
+function removeTrailingSignOff(lines: string[], expectedUserName: string): {
   bodyLines: string[];
   signOffPhrase: string;
 } {
@@ -330,7 +325,10 @@ function removeTrailingSignOff(lines: string[]): {
     ? signOffPhraseFromLine(previous.line)
     : null;
 
-  if (previousLineSignOff && isLikelyNameLine(last.line)) {
+  if (
+    previousLineSignOff &&
+    isExpectedSignatureLine(last.line, expectedUserName)
+  ) {
     return {
       bodyLines: trimBlankLines(lines.slice(0, previous.index)),
       signOffPhrase: previousLineSignOff,
@@ -351,7 +349,7 @@ function removeEmDashes(text: string): string {
   return text.replace(/—/g, "-");
 }
 
-function enforceReplyLayout(text: string, email: ParsedEmail): string {
+export function enforceReplyLayout(text: string, email: ParsedEmail): string {
   const greetingName = displayNameOrFallback(email.fromName, "");
   const userName = displayNameOrFallback(email.userName, "[your name here]");
 
@@ -368,7 +366,7 @@ function enforceReplyLayout(text: string, email: ParsedEmail): string {
     lines = trimBlankLines(lines.slice(1));
   }
 
-  const { bodyLines, signOffPhrase } = removeTrailingSignOff(lines);
+  const { bodyLines, signOffPhrase } = removeTrailingSignOff(lines, userName);
   const greeting = greetingName
     ? `${greetingPhrase} ${greetingName},`
     : `${greetingPhrase} there,`;
