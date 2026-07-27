@@ -265,26 +265,67 @@ function trimBlankLines(lines: string[]): string[] {
   return lines.slice(start, end);
 }
 
-function isGreetingLine(line: string): boolean {
-  return greetingPhraseFromLine(line) !== null;
+function capitalizeGreetingPhrase(phrase: string): string {
+  return phrase[0].toUpperCase() + phrase.slice(1);
 }
 
-function greetingPhraseFromLine(line: string): string | null {
+/**
+ * True when `value` looks like a greeting addressee ("Sarah", "Hiring Manager",
+ * "there") rather than the start of a sentence body.
+ */
+function isGreetingAddressee(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes("@")) {
+    return false;
+  }
+  if (trimmed.length > 50 || /[.!?;:]/.test(trimmed)) {
+    return false;
+  }
+  return trimmed.split(/\s+/).length <= 4;
+}
+
+/**
+ * Peel a leading greeting from a reply line.
+ * Pure greetings ("Hi Sarah,") yield an empty remainder.
+ * Greeting+body on one line ("Hi Sarah, I can join at 3pm,") keeps the body.
+ */
+function splitLeadingGreeting(
+  line: string,
+): { phrase: string; remainder: string } | null {
   const trimmed = line.trim();
   const lower = trimmed.toLowerCase();
-  if (!lower.endsWith(",")) {
-    return null;
-  }
 
   const phrases = Array.from(KNOWN_GREETING_PHRASES).sort(
     (a, b) => b.length - a.length,
   );
-  const phrase = phrases.find(
-    (candidate) =>
-      lower === `${candidate},` || lower.startsWith(`${candidate} `),
-  );
 
-  return phrase ? phrase[0].toUpperCase() + phrase.slice(1) : null;
+  for (const phrase of phrases) {
+    if (lower === `${phrase},`) {
+      return { phrase: capitalizeGreetingPhrase(phrase), remainder: "" };
+    }
+
+    if (!lower.startsWith(`${phrase} `)) {
+      continue;
+    }
+
+    const afterPhrase = trimmed.slice(phrase.length).trimStart();
+    const commaIdx = afterPhrase.indexOf(",");
+    if (commaIdx <= 0) {
+      continue;
+    }
+
+    const addressee = afterPhrase.slice(0, commaIdx).trim();
+    if (!isGreetingAddressee(addressee)) {
+      continue;
+    }
+
+    return {
+      phrase: capitalizeGreetingPhrase(phrase),
+      remainder: afterPhrase.slice(commaIdx + 1).trim(),
+    };
+  }
+
+  return null;
 }
 
 function signOffPhraseFromLine(line: string): string | null {
@@ -351,7 +392,7 @@ function removeEmDashes(text: string): string {
   return text.replace(/—/g, "-");
 }
 
-function enforceReplyLayout(text: string, email: ParsedEmail): string {
+export function enforceReplyLayout(text: string, email: ParsedEmail): string {
   const greetingName = displayNameOrFallback(email.fromName, "");
   const userName = displayNameOrFallback(email.userName, "[your name here]");
 
@@ -363,9 +404,14 @@ function enforceReplyLayout(text: string, email: ParsedEmail): string {
   );
 
   let greetingPhrase = "Hi";
-  if (lines.length > 0 && isGreetingLine(lines[0])) {
-    greetingPhrase = greetingPhraseFromLine(lines[0]) ?? greetingPhrase;
-    lines = trimBlankLines(lines.slice(1));
+  if (lines.length > 0) {
+    const split = splitLeadingGreeting(lines[0]);
+    if (split) {
+      greetingPhrase = split.phrase;
+      lines = trimBlankLines(
+        split.remainder ? [split.remainder, ...lines.slice(1)] : lines.slice(1),
+      );
+    }
   }
 
   const { bodyLines, signOffPhrase } = removeTrailingSignOff(lines);
