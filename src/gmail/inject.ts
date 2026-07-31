@@ -86,6 +86,11 @@ type InjectionTarget =
 
 let injected: InjectedComponents | null = null;
 let anchorPollTimer: ReturnType<typeof setInterval> | null = null;
+let pendingAnchorInject: {
+  state: SuggestionState;
+  callbacks: InjectCallbacks;
+} | null = null;
+let anchorWaitStartedAt = 0;
 let resizeListenerInstalled = false;
 let resizeRafId: number | null = null;
 
@@ -93,6 +98,9 @@ let resizeRafId: number | null = null;
  * Ensure the suggestion row is present in the DOM.
  * If it already exists for this thread, just update its state.
  * If not, wait for an anchor and inject fresh components.
+ *
+ * Concurrent callers (loading, then a fast cache/API success) share one anchor
+ * poll and always inject the latest pending state — never a stale loading row.
  */
 export function ensureInjected(
   state: SuggestionState,
@@ -101,30 +109,44 @@ export function ensureInjected(
   // Update in place if row already exists in the DOM
   const existing = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
   if (existing && document.contains(existing)) {
+    pendingAnchorInject = null;
+    clearAnchorPoll();
     moveExistingRowToNativeTarget(existing);
     updateButtonRow(existing, state, makeButtonCallbacks(callbacks));
     alignRowToMessageBody(existing);
     return;
   }
 
-  // Clear any previous stale reference
+  // Clear any previous stale reference and record the latest desired state.
   injected = null;
-  clearAnchorPoll();
+  pendingAnchorInject = { state, callbacks };
+  anchorWaitStartedAt = Date.now();
 
-  waitForAnchorAndInject(state, callbacks);
+  if (anchorPollTimer !== null) {
+    // Anchor poll already running; attempt() reads pendingAnchorInject.
+    return;
+  }
+
+  waitForAnchorAndInject();
 }
 
 /**
  * Update the state of an already-injected row.
- * No-op if the row isn't in the DOM.
+ * If the row is not in the DOM yet (anchor still resolving), fall through to
+ * ensureInjected so a fast cache/API response cannot leave the UI stuck on the
+ * initial loading state forever.
  */
 export function updateInjectedState(
   state: SuggestionState,
   callbacks: InjectCallbacks,
 ): void {
   const container = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
-  if (!container) {
-    console.debug(LOG_PREFIX, "updateInjectedState: container not found, skipping");
+  if (!container || !document.contains(container)) {
+    console.debug(
+      LOG_PREFIX,
+      "updateInjectedState: container not found, ensuring inject with latest state",
+    );
+    ensureInjected(state, callbacks);
     return;
   }
   updateButtonRow(container, state, makeButtonCallbacks(callbacks));
@@ -146,6 +168,7 @@ export function isRowInjected(): boolean {
  */
 export function removeInjected(): void {
   clearAnchorPoll();
+  pendingAnchorInject = null;
   removeResizeListener();
 
   const row = document.getElementById(CONTAINER_ID);
@@ -260,29 +283,42 @@ function openComposerIfClosed(): void {
   }
 }
 
-function waitForAnchorAndInject(
-  state: SuggestionState,
-  callbacks: InjectCallbacks,
-): void {
-  const startedAt = Date.now();
-
+function waitForAnchorAndInject(): void {
   const attempt = () => {
-    const target = findInjectionTarget();
-
-    if (target) {
+    const pending = pendingAnchorInject;
+    if (!pending) {
       clearAnchorPoll();
-      doInject(target, state, callbacks);
       return;
     }
 
-    if (Date.now() - startedAt > ANCHOR_WAIT_TIMEOUT_MS) {
+    // Another path may have mounted the row while we were waiting.
+    const existing = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
+    if (existing && document.contains(existing)) {
       clearAnchorPoll();
+      pendingAnchorInject = null;
+      moveExistingRowToNativeTarget(existing);
+      updateButtonRow(existing, pending.state, makeButtonCallbacks(pending.callbacks));
+      alignRowToMessageBody(existing);
+      return;
+    }
+
+    const target = findInjectionTarget();
+    if (target) {
+      clearAnchorPoll();
+      pendingAnchorInject = null;
+      doInject(target, pending.state, pending.callbacks);
+      return;
+    }
+
+    if (Date.now() - anchorWaitStartedAt > ANCHOR_WAIT_TIMEOUT_MS) {
+      clearAnchorPoll();
+      pendingAnchorInject = null;
       console.debug(LOG_PREFIX, "anchor not found within timeout; giving up");
     }
   };
 
   attempt(); // try immediately
-  if (!injected) {
+  if (pendingAnchorInject !== null && anchorPollTimer === null) {
     anchorPollTimer = setInterval(attempt, ANCHOR_POLL_INTERVAL_MS);
   }
 }
