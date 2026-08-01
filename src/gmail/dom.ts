@@ -172,19 +172,33 @@ export function getReplyComposerArea(): Element | null {
   return null;
 }
 
+const COMPOSER_BODY_SELECTORS = [
+  '.Am.Al.editable[contenteditable="true"]',
+  'div[aria-label="Message Body"][contenteditable="true"]',
+] as const;
+
 /**
- * contenteditable region where reply text is entered.
- * May need updating if Gmail changes its DOM
+ * Prefer a thread reply composer inside the reading pane over a floating Compose
+ * dialog. Document-wide querySelector would return (or treat as open) an unrelated
+ * Compose draft and risk wiping it when inserting a suggestion.
+ *
+ * When multiple editables exist in the pane, use the last match (latest message).
+ * May need updating if Gmail changes its DOM.
  */
 export function getComposerBodyEditable(): Element | null {
-  const selectors = [
-    '.Am.Al.editable[contenteditable="true"]',
-    'div[aria-label="Message Body"][contenteditable="true"]',
-  ] as const;
-  for (const sel of selectors) {
-    const el = document.querySelector(sel);
-    if (el) {
-      return el;
+  const pane = getEmailReadingPane();
+  if (!pane) {
+    return null;
+  }
+
+  for (const sel of COMPOSER_BODY_SELECTORS) {
+    try {
+      const matches = pane.querySelectorAll(sel);
+      if (matches.length > 0) {
+        return matches[matches.length - 1] ?? null;
+      }
+    } catch {
+      // Invalid selector in some engines — skip
     }
   }
   return null;
