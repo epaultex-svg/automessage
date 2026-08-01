@@ -16,8 +16,8 @@ import {
 } from "../ui/buttons";
 import type { Settings, SuggestionState } from "../types";
 import {
-  getReplyComposerArea,
   getComposerBodyEditable,
+  getEmailReadingPane,
   getLatestMessageBody,
 } from "./dom";
 
@@ -229,10 +229,13 @@ export function insertIntoComposer(text: string): void {
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 function openComposerIfClosed(): void {
-  // Avoid clicking if composer is already open
+  // Only treat a reading-pane reply composer as already open. An open Compose
+  // dialog elsewhere must not suppress opening the thread reply composer.
   if (getComposerBodyEditable()) {
     return;
   }
+
+  const root: ParentNode = getEmailReadingPane() ?? document;
 
   // Gmail's inline reply button (the area showing "Click here to Reply or Forward")
   // Note: this selector may need updating if Gmail changes its DOM
@@ -244,7 +247,9 @@ function openComposerIfClosed(): void {
   ];
 
   for (const sel of replyStubs) {
-    const btn = document.querySelector<HTMLElement>(sel);
+    // Prefer the last match so we open Reply on the latest message, not an older one.
+    const all = root.querySelectorAll<HTMLElement>(sel);
+    const btn = all.length > 0 ? all[all.length - 1] : null;
     if (btn) {
       btn.click();
       console.debug(LOG_PREFIX, "clicked reply stub:", sel);
@@ -252,11 +257,16 @@ function openComposerIfClosed(): void {
     }
   }
 
-  // Try the reply area itself — clicking it often opens the composer
-  const area = getReplyComposerArea();
-  if (area instanceof HTMLElement) {
-    area.click();
-    console.debug(LOG_PREFIX, "clicked reply composer area");
+  // Try the reply strip itself — clicking it often opens the composer.
+  // Scope to reading-pane reply chrome; do not click a Compose dialog.
+  for (const sel of [".aDh", ".btC"] as const) {
+    const all = root.querySelectorAll(sel);
+    const area = all.length > 0 ? all[all.length - 1] : null;
+    if (area instanceof HTMLElement) {
+      area.click();
+      console.debug(LOG_PREFIX, "clicked reply composer area");
+      return;
+    }
   }
 }
 
