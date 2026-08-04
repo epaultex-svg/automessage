@@ -86,6 +86,8 @@ type InjectionTarget =
 
 let injected: InjectedComponents | null = null;
 let anchorPollTimer: ReturnType<typeof setInterval> | null = null;
+/** Settings that arrived before the suggestion row existed in the DOM. */
+let pendingInCardSettings: Settings | null = null;
 let resizeListenerInstalled = false;
 let resizeRafId: number | null = null;
 
@@ -104,6 +106,7 @@ export function ensureInjected(
     moveExistingRowToNativeTarget(existing);
     updateButtonRow(existing, state, makeButtonCallbacks(callbacks));
     alignRowToMessageBody(existing);
+    applyPendingInCardSettings(existing);
     return;
   }
 
@@ -153,18 +156,25 @@ export function removeInjected(): void {
   restoreNativeSuggestedReply();
   row?.remove();
   injected = null;
+  pendingInCardSettings = null;
 
   console.debug(LOG_PREFIX, "injection removed");
 }
 
 /**
  * Populate the in-card settings form with current settings so the user can edit them.
+ * If the row is not mounted yet (anchor still resolving), stash settings and apply
+ * them when the row is injected — otherwise Save would persist DEFAULT_SETTINGS.
  */
 export function setInCardSettings(settings: Settings): void {
   const row = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
-  if (row) {
+  if (row && document.contains(row)) {
     populateButtonRowSettings(row, settings);
+    pendingInCardSettings = null;
+    return;
   }
+  pendingInCardSettings = settings;
+  console.debug(LOG_PREFIX, "setInCardSettings: row missing, pending until inject");
 }
 
 // ── Composer insertion ────────────────────────────────────────────────────────
@@ -387,6 +397,7 @@ function doInject(
   // Render the actual initial state
   updateButtonRow(row, initialState, buttonCallbacks);
   alignRowToMessageBody(row);
+  applyPendingInCardSettings(row);
   installResizeListener();
 
   console.debug(
@@ -394,6 +405,14 @@ function doInject(
     "injected into target:",
     target.kind === "native" ? "native suggested reply" : target.anchor.className,
   );
+}
+
+function applyPendingInCardSettings(row: HTMLDivElement): void {
+  if (!pendingInCardSettings) {
+    return;
+  }
+  populateButtonRowSettings(row, pendingInCardSettings);
+  pendingInCardSettings = null;
 }
 
 function hideNativeSuggestedReply(
