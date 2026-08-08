@@ -175,6 +175,8 @@ function startRestorePoll(threadId: string): void {
     if (!isRowInjected()) {
       console.debug(LOG_PREFIX, "suggestion row missing — restoring for", threadId);
       ensureInjected(lastSuccessState, activeCallbacks);
+      // Remount creates a new container; refresh in-card settings onto it.
+      fetchSettingsForCard();
     }
   }, RESTORE_POLL_MS);
 }
@@ -199,6 +201,8 @@ function makeCallbacks(threadId: string) {
       setTimeout(() => {
         if (lastSuccessState && activeCallbacks) {
           ensureInjected(lastSuccessState, activeCallbacks);
+          // Remount creates a new container; refresh in-card settings onto it.
+          fetchSettingsForCard();
         }
       }, 400);
     },

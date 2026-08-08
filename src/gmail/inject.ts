@@ -86,6 +86,9 @@ type InjectionTarget =
 
 let injected: InjectedComponents | null = null;
 let anchorPollTimer: ReturnType<typeof setInterval> | null = null;
+// Survives row remounts (Gmail composer rebuild / restore poll). Cleared only on
+// removeInjected so Save cannot fall back to DEFAULT_SETTINGS after recreate.
+let lastKnownInCardSettings: Settings | null = null;
 let resizeListenerInstalled = false;
 let resizeRafId: number | null = null;
 
@@ -104,6 +107,7 @@ export function ensureInjected(
     moveExistingRowToNativeTarget(existing);
     updateButtonRow(existing, state, makeButtonCallbacks(callbacks));
     alignRowToMessageBody(existing);
+    applyLastKnownInCardSettings(existing);
     return;
   }
 
@@ -153,18 +157,25 @@ export function removeInjected(): void {
   restoreNativeSuggestedReply();
   row?.remove();
   injected = null;
+  lastKnownInCardSettings = null;
 
   console.debug(LOG_PREFIX, "injection removed");
 }
 
 /**
  * Populate the in-card settings form with current settings so the user can edit them.
+ * Always remember the latest settings so a later remount (restore poll / composer
+ * rebuild) can repopulate the new container — settings live in a WeakMap keyed by
+ * the row element, which is recreated when Gmail removes our node.
  */
 export function setInCardSettings(settings: Settings): void {
+  lastKnownInCardSettings = settings;
   const row = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
-  if (row) {
+  if (row && document.contains(row)) {
     populateButtonRowSettings(row, settings);
+    return;
   }
+  console.debug(LOG_PREFIX, "setInCardSettings: row missing, will apply on next inject");
 }
 
 // ── Composer insertion ────────────────────────────────────────────────────────
@@ -387,6 +398,7 @@ function doInject(
   // Render the actual initial state
   updateButtonRow(row, initialState, buttonCallbacks);
   alignRowToMessageBody(row);
+  applyLastKnownInCardSettings(row);
   installResizeListener();
 
   console.debug(
@@ -394,6 +406,13 @@ function doInject(
     "injected into target:",
     target.kind === "native" ? "native suggested reply" : target.anchor.className,
   );
+}
+
+function applyLastKnownInCardSettings(row: HTMLDivElement): void {
+  if (!lastKnownInCardSettings) {
+    return;
+  }
+  populateButtonRowSettings(row, lastKnownInCardSettings);
 }
 
 function hideNativeSuggestedReply(
