@@ -28,6 +28,9 @@ import type {
 
 const LOG_PREFIX = "[Automessage/content]";
 
+// Must match STORAGE_KEY in src/storage/settings.ts
+const SETTINGS_STORAGE_KEY = "automessage_settings";
+
 // How often (ms) to check whether Gmail silently removed the suggestion row.
 const RESTORE_POLL_MS = 1200;
 
@@ -53,12 +56,28 @@ function init(): void {
 
   const stopDetection = startThreadDetection(onThreadChange);
 
+  // Popup (and any other writer) can update chrome.storage while the in-card
+  // settings WeakMap still holds a stale snapshot. Refresh the card on change
+  // so a later in-card Save cannot overwrite newer prefs.
+  chrome.storage.onChanged.addListener(onSettingsStorageChanged);
+
   // Clean up if the content script context is ever torn down
   window.addEventListener("unload", () => {
     stopDetection();
+    chrome.storage.onChanged.removeListener(onSettingsStorageChanged);
     removeInjected();
     clearRestorePoll();
   });
+}
+
+function onSettingsStorageChanged(
+  changes: { [key: string]: chrome.storage.StorageChange },
+  areaName: string,
+): void {
+  if (areaName !== "local" || !changes[SETTINGS_STORAGE_KEY]) {
+    return;
+  }
+  fetchSettingsForCard();
 }
 
 // ── Thread change handler ─────────────────────────────────────────────────────
