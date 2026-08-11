@@ -7,6 +7,7 @@ import {
 
 const LOG_PREFIX = "[Automessage/settings]";
 
+// Keep in sync with SETTINGS_STORAGE_KEY in src/content.ts (storage.onChanged).
 const STORAGE_KEY = "automessage_settings";
 
 function normalizeModel(model: string): string {
