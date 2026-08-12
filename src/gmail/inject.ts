@@ -170,6 +170,17 @@ export function setInCardSettings(settings: Settings): void {
 // ── Composer insertion ────────────────────────────────────────────────────────
 
 /**
+ * Gmail keeps quoted history (and often the signature) inside the same
+ * Message Body contenteditable as the reply draft. Suggestion insert must
+ * replace only the draft prefix and leave these structural nodes intact.
+ */
+const COMPOSER_PRESERVE_SELECTORS = [
+  ".gmail_quote",
+  ".gmail_signature",
+  '[data-smartmail="gmail_signature"]',
+] as const;
+
+/**
  * Click the native Gmail reply button to open the composer (if not open),
  * then insert text into the editable area.
  *
@@ -196,15 +207,6 @@ export function insertIntoComposer(text: string): void {
 
     editable.focus();
 
-    // Clear any placeholder text first
-    const selection = window.getSelection();
-    if (selection) {
-      const range = document.createRange();
-      range.selectNodeContents(editable);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
     // Convert plain-text newlines to HTML <br> tags so Gmail's contenteditable
     // renders them as visible line breaks. Escape HTML special chars first.
     const htmlText = text
@@ -213,17 +215,96 @@ export function insertIntoComposer(text: string): void {
       .replace(/>/g, "&gt;")
       .replace(/\n/g, "<br>");
 
+    const preserveFrom = findComposerPreserveRoot(editable);
+    selectComposerInsertRange(editable, preserveFrom);
+
     // insertHTML is deprecated but is the most reliable way to insert formatted
     // content into Gmail's contenteditable while triggering its own input handlers.
     const inserted = document.execCommand("insertHTML", false, htmlText);
     if (!inserted) {
-      // Fallback: set innerHTML directly with the escaped HTML
-      editable.innerHTML = htmlText;
-      editable.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      insertHtmlPreservingComposerSuffix(editable, htmlText, preserveFrom);
     }
 
     console.debug(LOG_PREFIX, "text inserted into composer, length:", text.length);
   }, 150);
+}
+
+/**
+ * Earliest signature/quote node inside the reply editable, in document order.
+ * Insertions replace only content before this node.
+ */
+function findComposerPreserveRoot(editable: HTMLElement): HTMLElement | null {
+  let earliest: HTMLElement | null = null;
+
+  for (const sel of COMPOSER_PRESERVE_SELECTORS) {
+    let matches: NodeListOf<HTMLElement>;
+    try {
+      matches = editable.querySelectorAll(sel);
+    } catch {
+      continue;
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      const el = matches[i];
+      if (el === editable || !editable.contains(el)) {
+        continue;
+      }
+      if (!earliest) {
+        earliest = el;
+        continue;
+      }
+      const position = earliest.compareDocumentPosition(el);
+      if (position & Node.DOCUMENT_POSITION_PRECEDING) {
+        earliest = el;
+      }
+    }
+  }
+
+  return earliest;
+}
+
+function selectComposerInsertRange(
+  editable: HTMLElement,
+  preserveFrom: HTMLElement | null,
+): void {
+  const selection = window.getSelection();
+  if (!selection) {
+    return;
+  }
+
+  const range = document.createRange();
+  if (preserveFrom && editable.contains(preserveFrom)) {
+    // Replace draft/placeholder text only; keep quote + signature nodes.
+    range.setStart(editable, 0);
+    range.setEndBefore(preserveFrom);
+  } else {
+    range.selectNodeContents(editable);
+  }
+
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function insertHtmlPreservingComposerSuffix(
+  editable: HTMLElement,
+  htmlText: string,
+  preserveFrom: HTMLElement | null,
+): void {
+  if (!preserveFrom || !editable.contains(preserveFrom)) {
+    editable.innerHTML = htmlText;
+    editable.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    return;
+  }
+
+  const range = document.createRange();
+  range.setStart(editable, 0);
+  range.setEndBefore(preserveFrom);
+  range.deleteContents();
+
+  const template = document.createElement("template");
+  template.innerHTML = htmlText;
+  editable.insertBefore(template.content, preserveFrom);
+  editable.dispatchEvent(new InputEvent("input", { bubbles: true }));
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
