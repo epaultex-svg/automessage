@@ -139,6 +139,85 @@ export function extractLatestMessageBody(doc: Document = document): string {
   return extractBodyText(source);
 }
 
+/**
+ * Block tags that produce a line break in rendered Gmail message HTML.
+ * Detached clones are not rendered, so `innerText` on them concatenates
+ * these boundaries with no separator (`$500<br>not` → `$500not`).
+ */
+const BLOCK_TAGS = new Set([
+  "ADDRESS",
+  "ARTICLE",
+  "ASIDE",
+  "BLOCKQUOTE",
+  "DD",
+  "DIV",
+  "DL",
+  "DT",
+  "FIGCAPTION",
+  "FIGURE",
+  "FOOTER",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "HEADER",
+  "LI",
+  "MAIN",
+  "NAV",
+  "OL",
+  "P",
+  "PRE",
+  "SECTION",
+  "TABLE",
+  "UL",
+]);
+
+/**
+ * Text of a message-body node, including separators for `<br>` and blocks.
+ * Safe on a detached clone: it does not use `innerText` / layout.
+ */
+function visibleTextFromNode(node: Node): string {
+  if (node.nodeType === 3) {
+    return node.textContent ?? "";
+  }
+  if (node.nodeType !== 1) {
+    return "";
+  }
+
+  const el = node as HTMLElement;
+  const tag = el.tagName;
+  if (
+    tag === "SCRIPT" ||
+    tag === "STYLE" ||
+    tag === "NOSCRIPT" ||
+    tag === "HEAD"
+  ) {
+    return "";
+  }
+  if (tag === "BR" || tag === "HR") {
+    return "\n";
+  }
+
+  let inner = "";
+  for (let i = 0; i < el.childNodes.length; i++) {
+    inner += visibleTextFromNode(el.childNodes[i]);
+  }
+
+  if (tag === "TD" || tag === "TH") {
+    const cell = inner.replace(/\s+/g, " ").trim();
+    return cell ? `${cell}\t` : "";
+  }
+  if (tag === "TR") {
+    return `${inner.replace(/[\t ]+$/g, "")}\n`;
+  }
+  if (BLOCK_TAGS.has(tag)) {
+    return `${inner.replace(/\n*$/g, "")}\n`;
+  }
+  return inner;
+}
+
 function extractBodyText(source: HTMLElement): string {
   const clone = source.cloneNode(true);
   if (!(clone instanceof HTMLElement)) {
@@ -147,7 +226,9 @@ function extractBodyText(source: HTMLElement): string {
   }
 
   removeQuotedAndNoiseFromClone(clone);
-  const raw = clone.innerText ?? "";
+  // Do not read clone.innerText. The clone is detached, so Chrome treats it
+  // as not rendered and returns descendant text with no <br> or block breaks.
+  const raw = visibleTextFromNode(clone);
   const cleaned = cleanExtractedText(raw);
   if (!cleaned) {
     debug("body empty after cleaning");
