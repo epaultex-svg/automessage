@@ -8,11 +8,13 @@
     "build": "webpack --mode production",
     "build:zip": "npm run build && zip -r automessage.zip manifest.json dist/ popup/popup.html styles/ icons/",
     "watch": "webpack --mode development --watch",
-    "dev": "webpack --mode development"
+    "dev": "webpack --mode development",
+    "test:parser-body": "node --experimental-strip-types scripts/test-parser-body-text.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
     "dotenv": "^17.4.2",
+    "jsdom": "^30.1.3",
     "ts-loader": "^9.5.1",
     "typescript": "^5.4.5",
     "webpack": "^5.91.0",
